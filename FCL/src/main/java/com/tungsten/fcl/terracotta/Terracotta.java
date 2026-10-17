@@ -135,7 +135,13 @@ public class Terracotta {
 
         mode = TerracottaMode.HOST;
         startNotificationListener();
-        TerracottaAndroidAPI.setScanning(room, player, extraNodes);
+        try {
+            TerracottaAndroidAPI.setScanning(room, player, extraNodes);
+        } catch (RuntimeException e) {
+            mode = null;
+            stopNotificationListener();
+            throw e;
+        }
     }
 
     public static boolean setGuesting(String room, @Nullable String player, @Nullable List<String> extraNodes) throws Exception {
@@ -146,12 +152,18 @@ public class Terracotta {
 
         mode = TerracottaMode.GUEST;
         startNotificationListener();
-        boolean started = TerracottaAndroidAPI.setGuesting(room, player, extraNodes);
-        if (!started) {
+        try {
+            boolean started = TerracottaAndroidAPI.setGuesting(room, player, extraNodes);
+            if (!started) {
+                mode = null;
+                stopNotificationListener();
+            }
+            return started;
+        } catch (RuntimeException e) {
             mode = null;
             stopNotificationListener();
+            throw e;
         }
-        return started;
     }
 
     public static String parseException(Context context, TerracottaState.Exception e) {
@@ -248,6 +260,11 @@ public class Terracotta {
     }
 
     private static void updateVpnNotificationState(Context context, String stateText) {
+        // Don't start a fresh foreground service just to update a notification when
+        // there is no established Terracotta tunnel.
+        if (!TerracottaVPNService.isRunning()) {
+            return;
+        }
         Intent intent = new Intent(context, TerracottaVPNService.class);
         intent.setAction(TerracottaVPNService.ACTION_UPDATE_STATE);
         intent.putExtra(TerracottaVPNService.EXTRA_STATE_TEXT, stateText);

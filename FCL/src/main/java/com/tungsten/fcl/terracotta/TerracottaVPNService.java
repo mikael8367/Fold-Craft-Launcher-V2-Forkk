@@ -66,17 +66,23 @@ public class TerracottaVPNService extends VpnService {
         }
 
         if (ACTION_UPDATE_STATE.equals(action)) {
-            if (intent.hasExtra(EXTRA_STATE_TEXT)) {
+            if (intent != null && intent.hasExtra(EXTRA_STATE_TEXT)) {
                 currentStateText = intent.getStringExtra(EXTRA_STATE_TEXT);
             }
 
             if (!isStopping) {
+                createNotificationChannelIfNeeded();
                 Notification n = buildVpnNotification();
-                if (n != null && notificationManager != null) {
-                    notificationManager.notify(VPN_NOTIFICATION_ID, n);
+                if (n != null) {
+                    // This also safely handles the rare case where Android recreated
+                    // the service from an update intent rather than an ACTION_START.
+                    startForeground(VPN_NOTIFICATION_ID, n);
+                    return Service.START_STICKY;
                 }
             }
-            return Service.START_STICKY;
+
+            stopSelf(startId);
+            return Service.START_NOT_STICKY;
         }
 
         boolean fromDelete = intent != null && intent.getBooleanExtra(EXTRA_FROM_DELETE, false);
@@ -93,13 +99,28 @@ public class TerracottaVPNService extends VpnService {
             return Service.START_STICKY;
         }
 
+        // A sticky restart may deliver a null intent. It must not be interpreted
+        // as a fresh VPN request because the native pending request may no longer exist.
+        if (!ACTION_START.equals(action)) {
+            Log.w(TAG, "Ignoring unsupported or stale start action: " + action);
+            stopSelf(startId);
+            return Service.START_NOT_STICKY;
+        }
+
         isStopping = false;
 
         createNotificationChannelIfNeeded();
 
         Notification notification = buildVpnNotification();
-        if (notification == null)
+        if (notification == null) {
+            try {
+                TerracottaAndroidAPI.getPendingVpnServiceRequest().reject();
+            } catch (RuntimeException e) {
+                Log.w(TAG, "No pending VPN request to reject after notification setup failed", e);
+            }
+            stopSelf(startId);
             return Service.START_NOT_STICKY;
+        }
         startForeground(VPN_NOTIFICATION_ID, notification);
 
         Builder vpnBuilder = new Builder().setSession("Terracotta Connection");

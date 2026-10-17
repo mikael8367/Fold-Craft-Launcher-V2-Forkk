@@ -103,10 +103,12 @@ public class MultiplayerDialog extends FCLDialog implements View.OnClickListener
                 .create();
 
         Terracotta.initialize(activity);
-        Terracotta.setWaiting(context, true);
 
         Objects.requireNonNull(metadataText).setText(String.format(getContext().getString(R.string.terracotta_metadata), Terracotta.getMetadata().getTerracottaVersion(), Terracotta.getMetadata().getEasyTierVersion()));
 
+        // Attach the listener before requesting the Waiting state. Previously the
+        // state change could happen before the listener was registered, leaving
+        // the dialog stuck on its loading spinner until another state arrived.
         Terracotta.stateProperty().addListener((observable, oldValue, newValue) -> {
             if (newValue instanceof TerracottaState.HostOK) {
                 if (newValue.isForkOf(oldValue)) {
@@ -122,6 +124,15 @@ public class MultiplayerDialog extends FCLDialog implements View.OnClickListener
             }
             switchUI(newValue);
         });
+
+        TerracottaState.Ready currentState = Terracotta.stateProperty().get();
+        if (currentState != null) {
+            switchUI(currentState);
+        } else {
+            // A null initial state is rendered as Waiting while native startup settles.
+            switchUI(null);
+        }
+        Terracotta.setWaiting(context, true);
     }
 
     @Override
@@ -136,7 +147,7 @@ public class MultiplayerDialog extends FCLDialog implements View.OnClickListener
     }
 
     private void switchUI(TerracottaState.Ready state) {
-        String stateString = state.toString();
+        String stateString = state == null ? "waiting" : state.toString();
         stateUIContainer.removeAllViews();
         for (StateBindingUI ui : allUI) {
             if (ui.getBindingState().contains(stateString)) {

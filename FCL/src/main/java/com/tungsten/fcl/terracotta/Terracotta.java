@@ -238,8 +238,7 @@ public class Terracotta {
         if (intent != null) {
             context.startActivityForResult(intent, result -> {
                 if (result.getResultCode() == Activity.RESULT_OK) {
-                    Intent vpnIntent = new Intent(context, TerracottaVPNService.class).setAction(TerracottaVPNService.ACTION_START);
-                    ContextCompat.startForegroundService(context, vpnIntent);
+                    startTerracottaVpnService(context);
                 } else {
                     try {
                         TerracottaAndroidAPI.getPendingVpnServiceRequest().reject();

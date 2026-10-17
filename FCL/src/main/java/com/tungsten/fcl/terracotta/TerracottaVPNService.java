@@ -86,7 +86,7 @@ public class TerracottaVPNService extends VpnService {
 
         boolean fromDelete = intent != null && intent.getBooleanExtra(EXTRA_FROM_DELETE, false);
 
-        if (ACTION_REPOST.equals(action) && fromDelete && !isStopping) {
+        if (ACTION_REPOST.equals(action) && fromDelete && !isStopping && vpnInterface != null) {
             Log.d(TAG, "Repost VPN notification after user cleared it.");
             if (intent.hasExtra(EXTRA_STATE_TEXT)) {
                 currentStateText = intent.getStringExtra(EXTRA_STATE_TEXT);

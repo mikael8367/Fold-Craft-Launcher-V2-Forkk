@@ -42,7 +42,7 @@ public class TerracottaVPNService extends VpnService {
 
     private ParcelFileDescriptor vpnInterface;
 
-    private static boolean running = false;
+    private static volatile boolean running = false;
 
     public static boolean isRunning() {
         return running;
@@ -70,12 +70,11 @@ public class TerracottaVPNService extends VpnService {
                 currentStateText = intent.getStringExtra(EXTRA_STATE_TEXT);
             }
 
-            if (!isStopping) {
+            if (!isStopping && vpnInterface != null) {
                 createNotificationChannelIfNeeded();
                 Notification n = buildVpnNotification();
                 if (n != null) {
-                    // This also safely handles the rare case where Android recreated
-                    // the service from an update intent rather than an ACTION_START.
+                    // Updating an existing tunnel also refreshes its foreground notification.
                     startForeground(VPN_NOTIFICATION_ID, n);
                     return Service.START_STICKY;
                 }
@@ -93,8 +92,10 @@ public class TerracottaVPNService extends VpnService {
                 currentStateText = intent.getStringExtra(EXTRA_STATE_TEXT);
             }
             Notification notification = buildVpnNotification();
-            if (notification == null)
+            if (notification == null) {
+                stopSelf(startId);
                 return Service.START_NOT_STICKY;
+            }
             startForeground(VPN_NOTIFICATION_ID, notification);
             return Service.START_STICKY;
         }

@@ -118,7 +118,12 @@ public final class TerracottaNodeList {
                 local = List.of();
             }
 
-            TerracottaNodeList.list = local;
+            // Do not permanently cache an empty result. Network errors are converted
+            // to an empty list above; caching that result made a temporary outage
+            // break all later host/join attempts until the app process restarted.
+            if (!local.isEmpty()) {
+                TerracottaNodeList.list = local;
+            }
             return local;
         }
     }

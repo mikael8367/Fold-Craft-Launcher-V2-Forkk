@@ -24,6 +24,7 @@ import com.tungsten.fcl.terracotta.TerracottaState;
 import com.tungsten.fcl.terracotta.profile.TerracottaProfile;
 import com.tungsten.fclauncher.utils.FCLPath;
 import com.tungsten.fclcore.fakefx.beans.binding.Bindings;
+import com.tungsten.fclcore.fakefx.beans.value.ChangeListener;
 import com.tungsten.fclcore.task.Schedulers;
 import com.tungsten.fclcore.util.Lang;
 import com.tungsten.fclcore.util.Logging;
@@ -62,6 +63,8 @@ public class MultiplayerDialog extends FCLDialog implements View.OnClickListener
 
     private final ArrayList<StateBindingUI> allUI;
     private final FCLAlertDialog logDialog;
+    private final ChangeListener<TerracottaState.Ready> stateListener;
+    private boolean stateListenerAttached = false;
 
     public MultiplayerDialog(@NonNull Context context, FCLActivity activity, int width, int height) {
         super(context);
@@ -106,24 +109,21 @@ public class MultiplayerDialog extends FCLDialog implements View.OnClickListener
 
         Objects.requireNonNull(metadataText).setText(String.format(getContext().getString(R.string.terracotta_metadata), Terracotta.getMetadata().getTerracottaVersion(), Terracotta.getMetadata().getEasyTierVersion()));
 
-        // Attach the listener before requesting the Waiting state. Previously the
-        // state change could happen before the listener was registered, leaving
-        // the dialog stuck on its loading spinner until another state arrived.
-        Terracotta.stateProperty().addListener((observable, oldValue, newValue) -> {
-            if (newValue instanceof TerracottaState.HostOK) {
-                if (newValue.isForkOf(oldValue)) {
-                    hostOkUI.refresh();
-                    return;
-                }
+        // Keep a named listener so it can be detached when the dialog is hidden.
+        // GameMenu reuses this dialog; leaving a static state listener attached
+        // would retain a dismissed dialog and its Activity until process death.
+        stateListener = (observable, oldValue, newValue) -> {
+            if (newValue instanceof TerracottaState.HostOK && newValue.isForkOf(oldValue)) {
+                hostOkUI.refresh();
+                return;
             }
-            if (newValue instanceof TerracottaState.GuestOK) {
-                if (newValue.isForkOf(oldValue)) {
-                    guestOkUI.refresh();
-                    return;
-                }
+            if (newValue instanceof TerracottaState.GuestOK && newValue.isForkOf(oldValue)) {
+                guestOkUI.refresh();
+                return;
             }
             switchUI(newValue);
-        });
+        };
+        attachStateListener();
 
         TerracottaState.Ready currentState = Terracotta.stateProperty().get();
         if (currentState != null) {
@@ -133,6 +133,35 @@ public class MultiplayerDialog extends FCLDialog implements View.OnClickListener
             switchUI(null);
         }
         Terracotta.setWaiting(context, true);
+    }
+
+    @Override
+    public void show() {
+        if (!stateListenerAttached) {
+            attachStateListener();
+        }
+        super.show();
+        switchUI(Terracotta.stateProperty().get());
+    }
+
+    @Override
+    public void dismiss() {
+        detachStateListener();
+        super.dismiss();
+    }
+
+    private void attachStateListener() {
+        if (!stateListenerAttached) {
+            Terracotta.stateProperty().addListener(stateListener);
+            stateListenerAttached = true;
+        }
+    }
+
+    private void detachStateListener() {
+        if (stateListenerAttached) {
+            Terracotta.stateProperty().removeListener(stateListener);
+            stateListenerAttached = false;
+        }
     }
 
     @Override
@@ -216,6 +245,10 @@ public class MultiplayerDialog extends FCLDialog implements View.OnClickListener
                 Objects.requireNonNull(getParent().progressBar).setVisibility(View.VISIBLE);
                 fetchNodesAsync()
                         .thenAcceptAsync(nodes -> {
+                            if (nodes == null || nodes.isEmpty()) {
+                                showConnectionError(R.string.terracotta_nodes_unavailable);
+                                return;
+                            }
                             List<String> nodeList = new ArrayList<>();
                             for (URI node : nodes) {
                                 nodeList.add(node.toString());
@@ -231,18 +264,12 @@ public class MultiplayerDialog extends FCLDialog implements View.OnClickListener
                                 Toast.makeText(getContext(), getContext().getString(R.string.terracotta_status_waiting_guest_prompt_invalid), Toast.LENGTH_SHORT).show();
                             } catch (Exception e) {
                                 Logging.LOG.log(Level.SEVERE, "MultiplayerDialog: setGuesting failed", e);
-                                host.setEnabled(true);
-                                guest.setEnabled(true);
-                                Objects.requireNonNull(getParent().progressBar).setVisibility(View.GONE);
+                                showConnectionError(R.string.terracotta_start_failed);
                             }
                         }, Schedulers.androidUIThread())
                         .exceptionally(e -> {
                             Logging.LOG.log(Level.SEVERE, "MultiplayerDialog: fetch chain failed", e);
-                            Schedulers.androidUIThread().execute(() -> {
-                                host.setEnabled(true);
-                                guest.setEnabled(true);
-                                Objects.requireNonNull(getParent().progressBar).setVisibility(View.GONE);
-                            });
+                            Schedulers.androidUIThread().execute(() -> showConnectionError(R.string.terracotta_start_failed));
                             return null;
                         });
             });
@@ -253,6 +280,10 @@ public class MultiplayerDialog extends FCLDialog implements View.OnClickListener
                 Objects.requireNonNull(getParent().progressBar).setVisibility(View.VISIBLE);
                 fetchNodesAsync()
                         .thenAcceptAsync(nodes -> {
+                            if (nodes == null || nodes.isEmpty()) {
+                                showConnectionError(R.string.terracotta_nodes_unavailable);
+                                return;
+                            }
                             List<String> nodeList = new ArrayList<>();
                             for (URI node : nodes) {
                                 nodeList.add(node.toString());
@@ -261,18 +292,12 @@ public class MultiplayerDialog extends FCLDialog implements View.OnClickListener
                                 Terracotta.setScanning(null, finalPlayer, nodeList);
                             } catch (Exception e) {
                                 Logging.LOG.log(Level.SEVERE, "MultiplayerDialog: setScanning failed", e);
-                                host.setEnabled(true);
-                                guest.setEnabled(true);
-                                Objects.requireNonNull(getParent().progressBar).setVisibility(View.GONE);
+                                showConnectionError(R.string.terracotta_start_failed);
                             }
                         }, Schedulers.androidUIThread())
                         .exceptionally(e -> {
                             Logging.LOG.log(Level.SEVERE, "MultiplayerDialog: fetch chain failed", e);
-                            Schedulers.androidUIThread().execute(() -> {
-                                host.setEnabled(true);
-                                guest.setEnabled(true);
-                                Objects.requireNonNull(getParent().progressBar).setVisibility(View.GONE);
-                            });
+                            Schedulers.androidUIThread().execute(() -> showConnectionError(R.string.terracotta_start_failed));
                             return null;
                         });
             });
@@ -285,6 +310,13 @@ public class MultiplayerDialog extends FCLDialog implements View.OnClickListener
         /**
          * 用一次性 daemon 线程执行节点列表请求，避免被共享线程池阻塞。
          */
+        private void showConnectionError(int messageRes) {
+            host.setEnabled(true);
+            guest.setEnabled(true);
+            Objects.requireNonNull(getParent().progressBar).setVisibility(View.GONE);
+            Toast.makeText(getContext(), getContext().getString(messageRes), Toast.LENGTH_LONG).show();
+        }
+
         private static CompletableFuture<List<URI>> fetchNodesAsync() {
             CompletableFuture<List<URI>> future = new CompletableFuture<>();
             Lang.thread(() -> {

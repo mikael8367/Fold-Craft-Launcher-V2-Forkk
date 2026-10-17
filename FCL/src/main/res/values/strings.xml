@@ -1263,6 +1263,8 @@
     <string name="terracotta_notification_title">Terracotta is running</string>
     <string name="notification_title">FCL Process service is running!</string>
     <string name="terracotta_notification_desc">Identity: %s, State: %s</string>
+    <string name="terracotta_nodes_unavailable">Could not load multiplayer relay servers. Check your internet connection and try again.</string>
+    <string name="terracotta_start_failed">Could not start the multiplayer connection. Check the multiplayer log for details.</string>
     <string name="terracotta_status_waiting_host_title">I want to host a session</string>
     <string name="terracotta_status_waiting_host_desc">Create a room and generate an invite code to play with friends</string>
     <string name="terracotta_status_waiting_guest_title">I want to join a session</string>

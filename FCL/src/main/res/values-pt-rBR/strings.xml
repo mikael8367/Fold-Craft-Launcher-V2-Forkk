@@ -917,4 +917,6 @@
     <string name="animation_idle_variant_1">Parado 1</string>
     <string name="animation_idle_variant_2">Parado 2</string>
     <string name="animation_idle_variant_3">Parado 3</string>
+    <string name="terracotta_nodes_unavailable">Não foi possível carregar os servidores de conexão. Verifique a internet e tente novamente.</string>
+    <string name="terracotta_start_failed">Não foi possível iniciar a conexão multiplayer. Consulte o log do multiplayer para ver detalhes.</string>
 </resources>

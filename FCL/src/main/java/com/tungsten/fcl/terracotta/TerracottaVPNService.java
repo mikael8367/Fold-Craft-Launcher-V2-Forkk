@@ -50,8 +50,6 @@ public class TerracottaVPNService extends VpnService {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        running = true;
-
         String action = intent != null ? intent.getAction() : null;
         Log.d(TAG, "onStartCommand, action = " + action);
 
@@ -74,7 +72,9 @@ public class TerracottaVPNService extends VpnService {
 
             if (!isStopping) {
                 Notification n = buildVpnNotification();
-                notificationManager.notify(VPN_NOTIFICATION_ID, n);
+                if (n != null && notificationManager != null) {
+                    notificationManager.notify(VPN_NOTIFICATION_ID, n);
+                }
             }
             return Service.START_STICKY;
         }
@@ -110,7 +110,21 @@ public class TerracottaVPNService extends VpnService {
         }
 
         TerracottaAndroidAPI.VpnServiceRequest request = TerracottaAndroidAPI.getPendingVpnServiceRequest();
-        vpnInterface = request.startVpnService(vpnBuilder);
+        try {
+            vpnInterface = request.startVpnService(vpnBuilder);
+            running = true;
+        } catch (RuntimeException e) {
+            Log.e(TAG, "Failed to establish Terracotta VPN interface", e);
+            try {
+                request.reject();
+            } catch (RuntimeException rejectError) {
+                Log.e(TAG, "Failed to reject pending Terracotta VPN request", rejectError);
+            }
+            cleanup();
+            stopForeground(true);
+            stopSelf();
+            return Service.START_NOT_STICKY;
+        }
 
         return Service.START_STICKY;
     }

@@ -43,10 +43,11 @@ public class Terracotta {
         GUEST
     }
 
-    private static boolean initialized = false;
+    private static volatile boolean initialized = false;
     private static TerracottaAndroidAPI.Metadata metadata = null;
     private static TerracottaMode mode = null;
     private static InvalidationListener notificationListener = null;
+    private static boolean notificationListenerStarted = false;
 
     private static final AtomicReference<TerracottaState.Ready> STATE_V = new AtomicReference<>(null);
     private static final ReadOnlyObjectWrapper<TerracottaState.Ready> STATE = new ReadOnlyObjectWrapper<>(STATE_V.get());
@@ -85,17 +86,31 @@ public class Terracotta {
         }));
 
         Lang.thread(() -> {
-            while (true) {
-                TerracottaState.Ready state = STATE.get();
-                int index = state == null ? -1 : state.index;
-                String stateJson = TerracottaAndroidAPI.getState();
-                TerracottaState.Ready object = JsonUtils.fromNonNullJson(stateJson, new TypeToken<TerracottaState.Ready>() {
-                }.getType());
-                TerracottaState.Ready next = object.index <= index ? null : object;
-                if (next != null) {
-                    compareAndSet(state, next);
+            long lastFailureLogNanos = 0L;
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    TerracottaState.Ready state = STATE.get();
+                    int index = state == null ? -1 : state.index;
+                    String stateJson = TerracottaAndroidAPI.getState();
+                    TerracottaState.Ready object = JsonUtils.fromNonNullJson(stateJson, new TypeToken<TerracottaState.Ready>() {
+                    }.getType());
+                    if (object != null && object.index > index) {
+                        compareAndSet(state, object);
+                    }
+                } catch (RuntimeException e) {
+                    // A transient native or JSON error must not silently kill the only
+                    // thread that propagates multiplayer state changes to the UI.
+                    long now = System.nanoTime();
+                    if (now - lastFailureLogNanos >= 5_000_000_000L) {
+                        Logging.LOG.log(Level.WARNING, "Terracotta state polling failed; retrying", e);
+                        lastFailureLogNanos = now;
+                    }
+                    LockSupport.parkNanos(250_000_000L);
                 }
-                LockSupport.parkNanos(500_000);
+
+                // 0.5 ms caused roughly 2,000 native polls per second. 50 ms is
+                // responsive enough for UI state while greatly reducing CPU wakeups.
+                LockSupport.parkNanos(50_000_000L);
             }
         }, "Terracotta Background Daemon", true);
 
@@ -119,6 +134,7 @@ public class Terracotta {
             throw new Exception("reset state to waiting first!");
 
         mode = TerracottaMode.HOST;
+        startNotificationListener();
         TerracottaAndroidAPI.setScanning(room, player, extraNodes);
     }
 
@@ -129,7 +145,13 @@ public class Terracotta {
             throw new Exception("reset state to waiting first!");
 
         mode = TerracottaMode.GUEST;
-        return TerracottaAndroidAPI.setGuesting(room, player, extraNodes);
+        startNotificationListener();
+        boolean started = TerracottaAndroidAPI.setGuesting(room, player, extraNodes);
+        if (!started) {
+            mode = null;
+            stopNotificationListener();
+        }
+        return started;
     }
 
     public static String parseException(Context context, TerracottaState.Exception e) {
@@ -185,12 +207,18 @@ public class Terracotta {
         TerracottaAndroidAPI.panic();
     }
 
-    private static void startNotificationListener() {
-        stateProperty().addListener(notificationListener);
+    private static synchronized void startNotificationListener() {
+        if (notificationListener != null && !notificationListenerStarted) {
+            stateProperty().addListener(notificationListener);
+            notificationListenerStarted = true;
+        }
     }
 
-    private static void stopNotificationListener() {
-        stateProperty().removeListener(notificationListener);
+    private static synchronized void stopNotificationListener() {
+        if (notificationListener != null && notificationListenerStarted) {
+            stateProperty().removeListener(notificationListener);
+            notificationListenerStarted = false;
+        }
     }
 
     private static void startTerracottaVpn(FCLActivity context) {

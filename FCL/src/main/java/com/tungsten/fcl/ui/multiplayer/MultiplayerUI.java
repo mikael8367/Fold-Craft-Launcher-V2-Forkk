@@ -22,7 +22,6 @@ import com.tungsten.fclauncher.utils.FCLPath;
 import com.tungsten.fclcore.task.Task;
 import com.tungsten.fclcore.util.io.NetworkUtils;
 import com.tungsten.fcllibrary.component.dialog.FCLAlertDialog;
-import com.tungsten.fcllibrary.component.FCLActivity;
 import com.tungsten.fcllibrary.component.ui.FCLCommonUI;
 import com.tungsten.fcllibrary.component.view.FCLButton;
 import com.tungsten.fcllibrary.component.view.FCLSwitch;
@@ -155,28 +154,6 @@ public class MultiplayerUI extends FCLCommonUI implements View.OnClickListener, 
                 editor.apply();
                 if (!((MainActivity) getActivity()).checkNotificationPermission() && isChecked) {
                     ((MainActivity) getActivity()).requestNotificationPermission();
-                }
-
-                // Enabling the preference alone did not start the Terracotta core.
-                // Initialize it here so its native runtime and VPN callback are ready
-                // before the in-game multiplayer flow attempts to create/join a room.
-                try {
-                    if (isChecked) {
-                        Terracotta.initialize((FCLActivity) getActivity());
-                    } else {
-                        Terracotta.setWaiting(getContext(), true);
-                    }
-                } catch (RuntimeException e) {
-                    editor.putBoolean("terracotta", false);
-                    editor.apply();
-                    switchMultiplayer.setOnCheckedChangeListener(null);
-                    switchMultiplayer.setChecked(false);
-                    switchMultiplayer.setOnCheckedChangeListener(this);
-                    extraLayout.setVisibility(View.GONE);
-                    Toast.makeText(getContext(),
-                            "Não foi possível iniciar o Terracotta: " + e.getMessage(),
-                            Toast.LENGTH_LONG).show();
-                    return;
                 }
 
                 extraLayout.setVisibility(switchMultiplayer.isChecked() ? View.VISIBLE : View.GONE);

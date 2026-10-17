@@ -241,14 +241,37 @@ public class Terracotta {
                     Intent vpnIntent = new Intent(context, TerracottaVPNService.class).setAction(TerracottaVPNService.ACTION_START);
                     ContextCompat.startForegroundService(context, vpnIntent);
                 } else {
-                    TerracottaAndroidAPI.getPendingVpnServiceRequest().reject();
+                    try {
+                        TerracottaAndroidAPI.getPendingVpnServiceRequest().reject();
+                    } catch (RuntimeException e) {
+                        Logging.LOG.log(Level.WARNING, "Terracotta VPN request was no longer pending after permission denial", e);
+                    }
                     setWaiting(context, true);
                     Toast.makeText(context, context.getString(R.string.terracotta_permission_vpn), Toast.LENGTH_SHORT).show();
                 }
             });
         } else {
-            Intent vpnIntent = new Intent(context, TerracottaVPNService.class).setAction(TerracottaVPNService.ACTION_START);
+            startTerracottaVpnService(context);
+        }
+    }
+
+    private static void startTerracottaVpnService(FCLActivity context) {
+        Intent vpnIntent = new Intent(context, TerracottaVPNService.class).setAction(TerracottaVPNService.ACTION_START);
+        try {
             ContextCompat.startForegroundService(context, vpnIntent);
+        } catch (RuntimeException e) {
+            Logging.LOG.log(Level.SEVERE, "Failed to start Terracotta VPN service", e);
+            try {
+                TerracottaAndroidAPI.getPendingVpnServiceRequest().reject();
+            } catch (RuntimeException rejectError) {
+                Logging.LOG.log(Level.WARNING, "Terracotta VPN request was no longer pending after service start failure", rejectError);
+            }
+            try {
+                setWaiting(context, true);
+            } catch (RuntimeException resetError) {
+                Logging.LOG.log(Level.WARNING, "Failed to reset Terracotta after VPN service start failure", resetError);
+            }
+            Toast.makeText(context, context.getString(R.string.terracotta_permission_vpn), Toast.LENGTH_SHORT).show();
         }
     }
 

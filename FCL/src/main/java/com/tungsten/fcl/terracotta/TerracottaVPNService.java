@@ -131,16 +131,19 @@ public class TerracottaVPNService extends VpnService {
         } catch (PackageManager.NameNotFoundException ignored) {
         }
 
-        TerracottaAndroidAPI.VpnServiceRequest request = TerracottaAndroidAPI.getPendingVpnServiceRequest();
+        TerracottaAndroidAPI.VpnServiceRequest request = null;
         try {
+            request = TerracottaAndroidAPI.getPendingVpnServiceRequest();
             vpnInterface = request.startVpnService(vpnBuilder);
             running = true;
         } catch (RuntimeException e) {
             Log.e(TAG, "Failed to establish Terracotta VPN interface", e);
-            try {
-                request.reject();
-            } catch (RuntimeException rejectError) {
-                Log.e(TAG, "Failed to reject pending Terracotta VPN request", rejectError);
+            if (request != null) {
+                try {
+                    request.reject();
+                } catch (RuntimeException rejectError) {
+                    Log.e(TAG, "Failed to reject pending Terracotta VPN request", rejectError);
+                }
             }
             cleanup();
             stopForeground(true);

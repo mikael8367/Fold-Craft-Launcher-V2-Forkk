@@ -334,6 +334,25 @@
         app:layout_constraintEnd_toStartOf="@id/right_menu"
         app:layout_constraintStart_toEndOf="@+id/left_menu" />
 
+    <TextView
+        android:id="@+id/fork_mikael_banner"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="#B3000000"
+        android:paddingStart="12dp"
+        android:paddingTop="5dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="5dp"
+        android:text="@string/fork_mikael_banner"
+        android:textColor="#FFFFFF"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:elevation="12dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <com.tungsten.fcllibrary.component.view.FCLDynamicIsland
         android:id="@+id/title"
         android:layout_width="wrap_content"

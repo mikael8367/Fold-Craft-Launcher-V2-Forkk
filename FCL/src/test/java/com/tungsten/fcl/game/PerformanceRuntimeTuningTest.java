@@ -16,6 +16,17 @@ public class PerformanceRuntimeTuningTest {
     }
 
     @Test
+    public void fpsBoosterReducesRenderResolutionForGpuHeadroom() {
+        assertEquals(0.70f, PerformanceRuntimeTuning.getRenderScale(true, false), 0.0001f);
+    }
+
+    @Test
+    public void explicitFixedResolutionIsNeverOverridden() {
+        assertEquals(1.0f, PerformanceRuntimeTuning.getRenderScale(true, true), 0.0001f);
+        assertEquals(1.0f, PerformanceRuntimeTuning.getRenderScale(false, false), 0.0001f);
+    }
+
+    @Test
     public void unsupportedLegacyJavaDoesNotReceiveTuningFlags() {
         assertTrue(PerformanceRuntimeTuning.buildJvmArguments(7, true, true).isEmpty());
     }

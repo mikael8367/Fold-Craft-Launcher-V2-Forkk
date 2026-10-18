@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/build-apk-now.yml"
+      - "FCL/src/main/java/com/tungsten/fcl/setting/GameOption.java"
+      - "FCL/src/main/java/com/tungsten/fcl/game/FCLGameLauncher.java"
+      - "FCL/src/main/java/com/tungsten/fcl/game/PerformanceProfileOptions.java"
 
 jobs:
   build:

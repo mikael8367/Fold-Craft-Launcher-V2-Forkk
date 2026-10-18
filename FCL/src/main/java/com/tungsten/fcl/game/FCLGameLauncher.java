@@ -245,7 +245,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
         }
     }
 
-        private Map<String, String> readOptionValues(File file) {
+    private Map<String, String> readOptionValues(File file) {
         if (file == null) {
             return null;
         }
@@ -286,7 +286,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
         }
     }
 
-        private void restorePerformanceOptions(GameOption gameOption, Map<String, String> baseline,
+    private void restorePerformanceOptions(GameOption gameOption, Map<String, String> baseline,
                                            boolean restoreMaxFps) {
         for (String key : PERFORMANCE_PROFILE_KEYS) {
             // FPS-only mode never owns this option; preserve the player's limit

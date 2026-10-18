@@ -260,11 +260,6 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
                 || preferences.getBoolean("fpsBoosterUltraEnabled", false);
     }
 
-    private boolean isUltraFpsBoosterEnabled() {
-        return getSharedPreferences("launcher", MODE_PRIVATE)
-                .getBoolean("fpsBoosterUltraEnabled", false);
-    }
-
     /**
      * Ask Android for sustained performance only while the game activity is active.
      * This is a system hint, not an overclock; the device may ignore it or still throttle.

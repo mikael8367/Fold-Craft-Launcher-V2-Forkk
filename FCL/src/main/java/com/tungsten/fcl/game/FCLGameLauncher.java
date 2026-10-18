@@ -43,12 +43,20 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 
 public final class FCLGameLauncher extends DefaultLauncher {
+
+    private static final String[] PERFORMANCE_PROFILE_KEYS = {
+            "renderDistance", "fancyGraphics", "graphics", "ao", "ambientOcclusion",
+            "particles", "mipmapLevels", "entityShadows", "clouds", "renderClouds",
+            "maxFps", "biomeBlendRadius", "entityDistanceScaling", "simulationDistance"
+    };
 
     public FCLGameLauncher(Context context, GameRepository repository, Version version, AuthInfo authInfo, LaunchOptions options) {
         super(context, repository, version, authInfo, options);
@@ -74,19 +82,6 @@ public final class FCLGameLauncher extends DefaultLauncher {
         boolean fpsBooster = launcherPrefs.getBoolean("fpsBoosterEnabled", false);
         boolean ramSaver = launcherPrefs.getBoolean("ramSaverEnabled", false);
         boolean performanceProfileEnabled = fpsBooster || ramSaver;
-
-        // Restore the original per-version options before reapplying the selected
-        // profile. This keeps disabling both switches reversible and idempotent.
-        if (profileBackup.isFile()) {
-            try {
-                Files.copy(profileBackup.toPath(), optionsFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                if (!performanceProfileEnabled && !profileBackup.delete()) {
-                    Logging.LOG.warning("Unable to delete performance profile backup: " + profileBackup);
-                }
-            } catch (IOException e) {
-                Logging.LOG.log(Level.WARNING, "Unable to restore Minecraft options backup", e);
-            }
-        }
 
         File splashFile = new File(configFolder, "splash.properties");
         try {
@@ -137,19 +132,112 @@ public final class FCLGameLauncher extends DefaultLauncher {
             gameOption = new GameOption(optionsFile.getParent());
         fixLang(gameOption);
         fixOptions(gameOption);
+
         if (performanceProfileEnabled) {
-            if (!profileBackup.exists()) {
-                // Save the user's pre-profile options once per version.
-                gameOption.save();
-                try {
-                    Files.copy(optionsFile.toPath(), profileBackup.toPath());
-                } catch (IOException e) {
-                    Logging.LOG.log(Level.WARNING, "Unable to back up Minecraft options before performance tuning", e);
+            // Never change the profile-managed options unless a recoverable
+            // baseline exists. The backup is taken before any profile is applied.
+            if (!profileBackup.isFile() && !createPerformanceBackup(optionsFile, profileBackup)) {
+                Logging.LOG.warning("Skipping performance profile because its options backup could not be created.");
+            } else {
+                Map<String, String> baseline = readOptionValues(profileBackup);
+                if (baseline == null) {
+                    Logging.LOG.warning("Skipping performance profile because its options backup could not be read.");
+                } else {
+                    // Restore only keys controlled by this feature, not the entire
+                    // options.txt file. Other player settings remain untouched.
+                    restorePerformanceOptions(gameOption, baseline);
+                    applyPerformanceProfile(gameOption, gameVersion, fpsBooster, ramSaver);
                 }
             }
-            applyPerformanceProfile(gameOption, gameVersion, fpsBooster, ramSaver);
+        } else if (profileBackup.isFile()) {
+            Map<String, String> baseline = readOptionValues(profileBackup);
+            if (baseline != null) {
+                restorePerformanceOptions(gameOption, baseline);
+                gameOption.save();
+                if (performanceOptionsMatchBaseline(optionsFile, baseline)) {
+                    if (!profileBackup.delete()) {
+                        Logging.LOG.warning("Unable to delete performance profile backup: " + profileBackup);
+                    }
+                } else {
+                    // Keep the baseline so a failed write can be retried next launch.
+                    Logging.LOG.warning("Performance profile options were not fully restored; keeping backup for retry.");
+                }
+            } else {
+                Logging.LOG.warning("Unable to read performance profile backup; preserving it for recovery.");
+            }
         }
         gameOption.save();
+    }
+
+    private boolean createPerformanceBackup(File optionsFile, File profileBackup) {
+        File tempBackup = new File(profileBackup.getParentFile(), profileBackup.getName() + ".tmp");
+        try {
+            if (!optionsFile.isFile()) {
+                Logging.LOG.warning("Cannot back up Minecraft options because options.txt is missing.");
+                return false;
+            }
+            Files.copy(optionsFile.toPath(), tempBackup.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            try {
+                Files.move(tempBackup.toPath(), profileBackup.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(tempBackup.toPath(), profileBackup.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+            return profileBackup.isFile();
+        } catch (IOException e) {
+            if (tempBackup.exists() && !tempBackup.delete()) {
+                Logging.LOG.warning("Unable to delete temporary performance backup: " + tempBackup);
+            }
+            Logging.LOG.log(Level.WARNING, "Unable to back up Minecraft options before performance tuning", e);
+            return false;
+        }
+    }
+
+    private Map<String, String> readOptionValues(File file) {
+        if (file == null || !file.isFile()) {
+            return null;
+        }
+        Map<String, String> values = new HashMap<>();
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                int colon = line.indexOf(':');
+                if (colon > 0) {
+                    values.put(line.substring(0, colon), line.substring(colon + 1));
+                }
+            }
+            return values;
+        } catch (IOException e) {
+            Logging.LOG.log(Level.WARNING, "Unable to read Minecraft options file: " + file, e);
+            return null;
+        }
+    }
+
+    private void restorePerformanceOptions(GameOption gameOption, Map<String, String> baseline) {
+        for (String key : PERFORMANCE_PROFILE_KEYS) {
+            if (baseline.containsKey(key)) {
+                gameOption.set(key, baseline.get(key));
+            } else {
+                gameOption.remove(key);
+            }
+        }
+    }
+
+    private boolean performanceOptionsMatchBaseline(File optionsFile, Map<String, String> baseline) {
+        Map<String, String> current = readOptionValues(optionsFile);
+        if (current == null) {
+            return false;
+        }
+        for (String key : PERFORMANCE_PROFILE_KEYS) {
+            if (baseline.containsKey(key)) {
+                if (!baseline.get(key).equals(current.get(key))) {
+                    return false;
+                }
+            } else if (current.containsKey(key)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -170,7 +258,11 @@ public final class FCLGameLauncher extends DefaultLauncher {
         gameOption.set("entityShadows", "false");
         gameOption.set("clouds", "false");
         gameOption.set("renderClouds", "false");
-        gameOption.set("maxFps", ramSaver ? "60" : "260");
+        // The FPS Booster preserves the player's chosen FPS cap. The RAM saver
+        // uses a conservative cap to reduce rendering pressure and heat.
+        if (ramSaver) {
+            gameOption.set("maxFps", "60");
+        }
 
         if (gameVersion.compareTo("1.15") >= 0) {
             gameOption.set("biomeBlendRadius", "0");

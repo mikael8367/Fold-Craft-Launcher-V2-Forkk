@@ -920,7 +920,7 @@
     <string name="terracotta_nodes_unavailable">Não foi possível carregar os servidores de conexão. Verifique a internet e tente novamente.</string>
     <string name="terracotta_start_failed">Não foi possível iniciar a conexão multiplayer. Consulte o log do multiplayer para ver detalhes.</string>
     <string name="settings_launcher_fps_booster">Aumentar FPS</string>
-    <string name="settings_launcher_fps_booster_desc">Aplica gráficos mais leves, menor distância de renderização e limite de 60 FPS para melhorar a estabilidade. Aplicado ao iniciar o jogo.</string>
+    <string name="settings_launcher_fps_booster_desc">Aplica gráficos mais leves e menor distância de renderização para melhorar o desempenho. Preserva o limite de FPS configurado. Aplicado ao iniciar o jogo.</string>
     <string name="settings_launcher_ram_saver">Reduzir consumo de RAM</string>
-    <string name="settings_launcher_ram_saver_desc">Reduz a distância de renderização e simulação e desativa efeitos visuais pesados. A economia real varia conforme a versão, os mods e o mundo.</string>
+    <string name="settings_launcher_ram_saver_desc">Reduz as distâncias de renderização e simulação, as partículas e os efeitos visuais, além de limitar a 60 FPS para reduzir a pressão de renderização e memória. Não altera diretamente a memória Java (Xmx); o resultado varia por versão, mods e mundo. Aplicado ao iniciar o jogo.</string>
 </resources>

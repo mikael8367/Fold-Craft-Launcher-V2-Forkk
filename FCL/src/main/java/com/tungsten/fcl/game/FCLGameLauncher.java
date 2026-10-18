@@ -52,9 +52,6 @@ import java.util.logging.Level;
 
 public final class FCLGameLauncher extends DefaultLauncher {
 
-    private static final String[] PERFORMANCE_PROFILE_KEYS =
-            PerformanceProfileOptions.getManagedOptionKeys().toArray(new String[0]);
-
     public FCLGameLauncher(Context context, GameRepository repository, Version version, AuthInfo authInfo, LaunchOptions options) {
         super(context, repository, version, authInfo, options);
     }
@@ -67,21 +64,15 @@ public final class FCLGameLauncher extends DefaultLauncher {
         return res;
     }
 
-    private void generateOptionsTxt() {
-        File optionsFile = new File(repository.getRunDirectory(version.getId()), "options.txt");
+    /**
+     * Prepare launcher/loader configuration only. Existing Minecraft options.txt
+     * is owned by Minecraft and is deliberately never read or rewritten here.
+     */
+    private void prepareRuntimeConfig() {
         File configFolder = new File(repository.getRunDirectory(version.getId()), "config");
-
         if (!configFolder.isDirectory() && !configFolder.mkdirs() && !configFolder.isDirectory()) {
             Logging.LOG.warning("Unable to create Minecraft config directory: " + configFolder);
         }
-        File profileBackup = new File(optionsFile.getParentFile(), "options.txt.fcl-backup");
-        SharedPreferences launcherPrefs = context.getSharedPreferences("launcher", Context.MODE_PRIVATE);
-        boolean fpsBooster = launcherPrefs.getBoolean("fpsBoosterEnabled", false);
-        boolean ramSaver = launcherPrefs.getBoolean("ramSaverEnabled", false);
-        boolean performanceProfileEnabled = fpsBooster || ramSaver;
-        String performanceStateKey = PerformanceProfileOptions.statePreferenceKeyFor(optionsFile.getAbsolutePath());
-        boolean hasPreviousPerformanceState = launcherPrefs.contains(performanceStateKey);
-        boolean previousRamSaver = launcherPrefs.getBoolean(performanceStateKey, false);
 
         File splashFile = new File(configFolder, "splash.properties");
         try {
@@ -89,345 +80,56 @@ public final class FCLGameLauncher extends DefaultLauncher {
         } catch (IOException e) {
             Logging.LOG.log(Level.WARNING, "Unable to disable forge animation", e);
         }
-        // 仅对 MC 26.3+ 关闭 FML 早期加载屏：其 ANGLE/Vulkan 渲染在启动期反复分配 gralloc 缓冲，
-        // 会与启动器 UI 的 present 在 vendor gralloc 锁上互堵（UI 冻死直至 ANR）。
-        // 更早版本无此冲突，须清掉残留的关闭键，保留模组加载进度动画。
-        // 键置于文件头部，不会落入任何表作用域；FML 加载后会按 spec 回写补全注释与其余键。
+
+        // Only disable the FML early-loading window on versions where its startup
+        // renderer conflicts with Android's gralloc synchronization.
         File fmlToml = new File(configFolder, "fml.toml");
-        GameVersionNumber gameVersion = GameVersionNumber.asGameVersion(repository.getGameVersion(version).orElse("0.0"));
+        GameVersionNumber gameVersion = GameVersionNumber.asGameVersion(
+                repository.getGameVersion(version).orElse("0.0"));
         boolean disableEarlyWindow = gameVersion.compareTo("26.3") >= 0;
         if (fmlToml.isFile()) {
-            try (BufferedReader bfr = new BufferedReader(new FileReader(fmlToml))) {
-                StringBuilder str = new StringBuilder(disableEarlyWindow ? "earlyWindowControl = false\n" : "");
+            try (BufferedReader reader = new BufferedReader(new FileReader(fmlToml))) {
+                StringBuilder text = new StringBuilder(disableEarlyWindow ? "earlyWindowControl = false\\n" : "");
                 String line;
-                while ((line = bfr.readLine()) != null) {
+                while ((line = reader.readLine()) != null) {
                     if (!line.strip().startsWith("earlyWindowControl")) {
-                        str.append(line).append('\n');
+                        text.append(line).append('\\n');
                     }
                 }
-                try (FileWriter fw = new FileWriter(fmlToml)) {
-                    fw.write(str.toString());
+                try (FileWriter writer = new FileWriter(fmlToml)) {
+                    writer.write(text.toString());
                 }
             } catch (IOException e) {
                 Logging.LOG.log(Level.WARNING, "Unable to write fml.toml", e);
             }
         } else if (disableEarlyWindow) {
             try {
-                FileUtils.writeText(fmlToml, "earlyWindowControl = false\n");
+                FileUtils.writeText(fmlToml, "earlyWindowControl = false\\n");
             } catch (IOException e) {
                 Logging.LOG.log(Level.WARNING, "Unable to write fml.toml", e);
             }
         }
-        GameOption gameOption = null;
-        if (!optionsFile.exists()) {
-            try {
-                RuntimeUtils.copyAssets(context, "options.txt", optionsFile.getAbsolutePath());
-                gameOption = new GameOption(optionsFile.getParent());
-                gameOption.set("lang", LocaleUtils.isChinese(context) ? "zh_cn" : "en_us");
-            } catch (IOException e) {
-                Logging.LOG.log(Level.WARNING, "Unable to generate options.txt", e);
-            }
-        }
-        if (gameOption == null)
-            gameOption = new GameOption(optionsFile.getParent());
-        fixLang(gameOption);
-        fixOptions(gameOption);
-
-        Map<String, String> baselineToVerify = null;
-        boolean verifyMaxFpsBaseline = false;
-        boolean performanceProfileApplied = false;
-        boolean restoreMaxFpsDuringProfile = false;
-        Map<String, String> profileBaselineForState = null;
-        if (performanceProfileEnabled) {
-            // Never change the profile-managed options unless a recoverable
-            // baseline exists. The backup is taken before any profile is applied.
-            boolean backupCreatedThisRun = false;
-            if (!isRegularFileSafely(profileBackup)) {
-                backupCreatedThisRun = createPerformanceBackup(optionsFile, profileBackup);
-                if (!backupCreatedThisRun) {
-                    Logging.LOG.warning("Skipping performance profile because its options backup could not be created.");
-                }
-            }
-            if (isRegularFileSafely(profileBackup)) {
-                Map<String, String> baseline = readOptionValues(profileBackup);
-                if (baseline == null) {
-                    Logging.LOG.warning("Skipping performance profile because its options backup could not be read.");
-                } else {
-                    // The FPS cap is owned only by RAM Saver. Preserve user changes
-                    // in FPS-only mode, but undo an older RAM Saver cap when modes
-                    // switch or a legacy backup has no recorded profile state.
-                    boolean restoreMaxFps = ramSaver || previousRamSaver
-                            || (!hasPreviousPerformanceState && !backupCreatedThisRun);
-                    restorePerformanceOptions(gameOption, baseline, restoreMaxFps);
-                    applyPerformanceProfile(gameOption, gameVersion, fpsBooster, ramSaver);
-                    restoreMaxFpsDuringProfile = restoreMaxFps;
-                    profileBaselineForState = baseline;
-                    performanceProfileApplied = true;
-                }
-            }
-        } else if (isRegularFileSafely(profileBackup)) {
-            Map<String, String> baseline = readOptionValues(profileBackup);
-            if (baseline != null) {
-                boolean restoreMaxFps = previousRamSaver || !hasPreviousPerformanceState;
-                restorePerformanceOptions(gameOption, baseline, restoreMaxFps);
-                baselineToVerify = baseline;
-                verifyMaxFpsBaseline = restoreMaxFps;
-            } else {
-                Logging.LOG.warning("Unable to read performance profile backup; preserving it for recovery.");
-            }
-        }
-        gameOption.save();
-        if (performanceProfileApplied) {
-            if (performanceOptionsMatchExpected(optionsFile, profileBaselineForState, gameVersion,
-                    fpsBooster, ramSaver, restoreMaxFpsDuringProfile)) {
-                launcherPrefs.edit().putBoolean(performanceStateKey, ramSaver).apply();
-            } else {
-                Logging.LOG.warning("Performance profile write could not be verified; keeping the previous profile state.");
-            }
-        }
-        if (baselineToVerify != null) {
-            if (performanceOptionsMatchBaseline(optionsFile, baselineToVerify, verifyMaxFpsBaseline)) {
-                if (deleteFileSafely(profileBackup)) {
-                    launcherPrefs.edit().remove(performanceStateKey).apply();
-                } else {
-                    Logging.LOG.warning("Unable to delete performance profile backup: " + profileBackup);
-                }
-            } else {
-                // Keep the baseline so a failed write can be retried next launch.
-                Logging.LOG.warning("Performance profile options were not fully restored; keeping backup for retry.");
-            }
-        }
-    }
-
-    private boolean createPerformanceBackup(File optionsFile, File profileBackup) {
-        File tempBackup = new File(profileBackup.getParentFile(), profileBackup.getName() + ".tmp");
-        try {
-            if (!isRegularFileSafely(optionsFile)) {
-                Logging.LOG.warning("Cannot back up Minecraft options because options.txt is missing.");
-                return false;
-            }
-            Files.copy(optionsFile.toPath(), tempBackup.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            try {
-                Files.move(tempBackup.toPath(), profileBackup.toPath(),
-                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(tempBackup.toPath(), profileBackup.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            }
-            return isRegularFileSafely(profileBackup);
-        } catch (IOException | SecurityException e) {
-            try {
-                if (tempBackup.exists() && !deleteFileSafely(tempBackup)) {
-                    Logging.LOG.warning("Unable to delete temporary performance backup: " + tempBackup);
-                }
-            } catch (SecurityException cleanupError) {
-                e.addSuppressed(cleanupError);
-            }
-            Logging.LOG.log(Level.WARNING, "Unable to back up Minecraft options before performance tuning", e);
-            return false;
-        }
-    }
-
-    private boolean isRegularFileSafely(File file) {
-        try {
-            return file != null && file.isFile();
-        } catch (SecurityException e) {
-            Logging.LOG.log(Level.WARNING, "Unable to inspect performance profile file: " + file, e);
-            return false;
-        }
-    }
-
-    private boolean deleteFileSafely(File file) {
-        try {
-            return file != null && file.delete();
-        } catch (SecurityException e) {
-            Logging.LOG.log(Level.WARNING, "Unable to delete performance profile file: " + file, e);
-            return false;
-        }
-    }
-
-    private Map<String, String> readOptionValues(File file) {
-        if (file == null) {
-            return null;
-        }
-
-        Map<String, String> values = new HashMap<>();
-        try {
-            if (!isRegularFileSafely(file)) {
-                return null;
-            }
-            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    int colon = line.indexOf(':');
-                    if (colon > 0) {
-                        values.put(line.substring(0, colon), line.substring(colon + 1));
-                    }
-                }
-            }
-
-            // A valid backup must contain a distance key plus several managed
-            // settings. One valid line may simply be a truncated/corrupt backup.
-            boolean hasRenderDistance = values.containsKey("renderDistance")
-                    || values.containsKey("viewDistance");
-            int recognizedOptionCount = 0;
-            for (String key : PERFORMANCE_PROFILE_KEYS) {
-                if (values.containsKey(key)) {
-                    recognizedOptionCount++;
-                }
-            }
-            if (!hasRenderDistance || recognizedOptionCount < 3) {
-                Logging.LOG.warning("Minecraft options file is incomplete or missing managed settings: " + file);
-                return null;
-            }
-            return values;
-        } catch (IOException | SecurityException e) {
-            Logging.LOG.log(Level.WARNING, "Unable to read Minecraft options file: " + file, e);
-            return null;
-        }
-    }
-
-    private void restorePerformanceOptions(GameOption gameOption, Map<String, String> baseline,
-                                           boolean restoreMaxFps) {
-        for (String key : PERFORMANCE_PROFILE_KEYS) {
-            // FPS-only mode never owns this option; preserve the player's limit
-            // unless we are undoing a previously applied RAM Saver cap.
-            if ("maxFps".equals(key)) {
-                continue;
-            }
-            if (baseline.containsKey(key)) {
-                gameOption.set(key, baseline.get(key));
-            } else {
-                gameOption.remove(key);
-            }
-        }
-        if (restoreMaxFps) {
-            if (baseline.containsKey("maxFps")) {
-                gameOption.set("maxFps", baseline.get("maxFps"));
-            } else {
-                gameOption.remove("maxFps");
-            }
-        }
-    }
-
-    private boolean performanceOptionsMatchExpected(File optionsFile, Map<String, String> baseline,
-                                                    GameVersionNumber gameVersion, boolean fpsBooster,
-                                                    boolean ramSaver, boolean verifyMaxFps) {
-        if (baseline == null) {
-            return false;
-        }
-
-        Map<String, String> expected = PerformanceProfileOptions.buildProfile(
-                gameVersion, fpsBooster, ramSaver);
-        Map<String, String> current = readOptionValues(optionsFile);
-        if (current == null) {
-            return false;
-        }
-
-        for (String key : PERFORMANCE_PROFILE_KEYS) {
-            if ("maxFps".equals(key)) {
-                if (expected.containsKey(key)) {
-                    if (!expected.get(key).equals(current.get(key))) {
-                        return false;
-                    }
-                } else if (verifyMaxFps) {
-                    // RAM Saver cannot set maxFps on pre-1.7.2 clients. In that
-                    // case verify restoration of the original value, not 60 FPS.
-                    if (baseline.containsKey(key)) {
-                        if (!baseline.get(key).equals(current.get(key))) {
-                            return false;
-                        }
-                    } else if (current.containsKey(key)) {
-                        return false;
-                    }
-                }
-                continue;
-            }
-
-            if (expected.containsKey(key)) {
-                if (!expected.get(key).equals(current.get(key))) {
-                    return false;
-                }
-            } else if (current.containsKey(key)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean performanceOptionsMatchBaseline(File optionsFile, Map<String, String> baseline,
-                                                    boolean verifyMaxFps) {
-        Map<String, String> current = readOptionValues(optionsFile);
-        if (current == null) {
-            return false;
-        }
-        for (String key : PERFORMANCE_PROFILE_KEYS) {
-            if ("maxFps".equals(key) && !verifyMaxFps) {
-                continue;
-            }
-            if (baseline.containsKey(key)) {
-                if (!baseline.get(key).equals(current.get(key))) {
-                    return false;
-                }
-            } else if (current.containsKey(key)) {
-                return false;
-            }
-        }
-        return true;
     }
 
     /**
-     * Applies conservative options supported by most Minecraft generations.
-     * The game ignores settings it does not recognize; version-specific keys
-     * are only added when that option exists in the corresponding generation.
+     * Apply performance profiles to the Java process, not to Minecraft's
+     * options.txt. CommandBuilder keeps existing/user-provided JVM flags when
+     * one of these defaults was already specified.
      */
-    private void applyPerformanceProfile(GameOption gameOption, GameVersionNumber gameVersion,
-                                         boolean fpsBooster, boolean ramSaver) {
-        Map<String, String> profile = PerformanceProfileOptions.buildProfile(
-                gameVersion, fpsBooster, ramSaver);
-
-        for (String key : PERFORMANCE_PROFILE_KEYS) {
-            if ("maxFps".equals(key)) {
-                // Do not overwrite or remove the user's FPS limit in FPS-only
-                // mode. RAM Saver owns this option only when it sets a cap.
-                continue;
-            }
-            String value = profile.get(key);
-            if (value != null) {
-                gameOption.set(key, value);
-            } else {
-                // Remove stale keys written by older launcher releases and keys
-                // which were renamed or are unsupported in this Minecraft version.
-                gameOption.remove(key);
-            }
-        }
-
-        if (profile.containsKey("maxFps")) {
-            gameOption.set("maxFps", profile.get("maxFps"));
-        }
-    }
-
-    private void fixOptions(GameOption gameOption) {
-        GameVersionNumber gameVersion = GameVersionNumber.asGameVersion(repository.getGameVersion(version).orElse("0.0"));
-        gameOption.set("touchscreen", "false");
-        if (gameVersion.compareTo("1.13") < 0) {
-            gameOption.set("key_key.fullscreen", "0");
-            gameOption.set("key_key.streamStartStop", "0");
-        }
-    }
-
-    private void fixLang(GameOption gameOption) {
-        GameVersionNumber gameVersion = GameVersionNumber.asGameVersion(repository.getGameVersion(version).orElse("0.0"));
-        if (gameVersion.compareTo("1.1") < 0) {
+    @Override
+    protected void appendJvmArgs(CommandBuilder result) {
+        SharedPreferences preferences = context.getSharedPreferences("launcher", Context.MODE_PRIVATE);
+        boolean fpsBooster = preferences.getBoolean("fpsBoosterEnabled", false);
+        boolean ramSaver = preferences.getBoolean("ramSaverEnabled", false);
+        if (!fpsBooster && !ramSaver) {
             return;
         }
-        boolean toUpper = gameVersion.compareTo("1.11") < 0;
-        String lang;
-        lang = gameOption.get("lang");
-        if (lang == null) return;
-        String[] parts = lang.split("_", 2);
-        if (parts.length != 2) return;
-        lang = parts[0] + "_" + (toUpper ? parts[1].toUpperCase() : parts[1].toLowerCase());
-        gameOption.set("lang", lang);
+
+        JavaVersion javaVersion = options.getJava().isAuto()
+                ? JavaVersion.getSuitableJavaVersion(version)
+                : options.getJava();
+        result.addAllDefault(PerformanceRuntimeTuning.buildJvmArguments(
+                javaVersion.getVersion(), fpsBooster, ramSaver));
     }
 
     private void modifyIfConfigDetected(String config, String option, String replacement, boolean overwrite, Renderer... renderers) {
@@ -487,7 +189,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
 
     @Override
     public FCLBridge launch() throws IOException, InterruptedException {
-        generateOptionsTxt();
+        prepareRuntimeConfig();
         // Sodium
         modifyIfConfigDetected("sodium-mixins.properties", "", "mixin.features.chunk_rendering=false", false, RendererManager.RENDERER_GL4ES, RendererManager.RENDERER_VGPU);
         // Rubidium

@@ -87,7 +87,7 @@ public final class PerformanceProfileOptions {
 
         // Older clients use a boolean, intervening releases accept numeric
         // levels, and the latest graphics preset schema uses a boolean again.
-        if (version.compareTo("1.8") < 0 || hasGraphicsPreset) {
+        if (!hasCloudStatusKey || hasGraphicsPreset) {
             settings.put("ao", "false");
         } else {
             settings.put("ao", "0");

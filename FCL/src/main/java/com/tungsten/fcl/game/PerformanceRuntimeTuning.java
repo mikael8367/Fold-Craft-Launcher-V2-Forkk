@@ -17,6 +17,15 @@ public final class PerformanceRuntimeTuning {
     }
 
     /**
+     * GPU-bound games can benefit from rendering fewer pixels. A 0.70 scale
+     * renders about 49% as many pixels as full resolution. Respect an explicit
+     * user-selected fixed resolution instead of silently overriding it.
+     */
+    public static float getRenderScale(boolean fpsBooster, boolean forceResolution) {
+        return fpsBooster && !forceResolution ? 0.70f : 1.0f;
+    }
+
+    /**
      * Returns JVM arguments for the enabled profiles.
      *
      * @param javaMajorVersion selected Java major version

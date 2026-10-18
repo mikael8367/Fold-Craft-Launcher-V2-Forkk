@@ -203,7 +203,7 @@ public class PerformanceProfileOptionsTest {
 
         assertEquals("fast", settings.get("graphicsPreset"));
         assertEquals("4", settings.get("renderDistance"));
-        assertEquals("4", settings.get("simulationDistance"));
+        assertEquals("5", settings.get("simulationDistance"));
         assertEquals("60", settings.get("maxFps"));
     }
 }

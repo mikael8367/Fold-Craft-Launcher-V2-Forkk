@@ -36,7 +36,6 @@ import com.tungsten.fclcore.launch.DefaultLauncher;
 import com.tungsten.fclcore.util.Logging;
 import com.tungsten.fclcore.util.io.FileUtils;
 import com.tungsten.fclcore.util.platform.CommandBuilder;
-import com.tungsten.fclcore.util.versioning.GameVersionNumber;
 
 import java.io.BufferedReader;
 import java.io.File;

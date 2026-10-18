@@ -58,25 +58,36 @@ public final class PerformanceProfileOptions {
 
         Map<String, String> settings = new LinkedHashMap<>();
         int renderDistance = ramSaver ? 4 : 6;
-        if (version.compareTo("1.7.2") < 0) {
+        // These thresholds include the exact snapshot when Mojang introduced the
+        // option. GameVersionNumber.compareTo(release) treats some snapshots as
+        // earlier than their associated release, even when they already use the
+        // new options.txt schema.
+        boolean hasModernDistanceKey = version.isAtLeast("1.7.2", "13w38a");
+        boolean hasCloudStatusKey = version.isAtLeast("1.8", "14w25a");
+        boolean hasBiomeBlend = version.isAtLeast("1.13", "18w15a");
+        boolean hasEntityDistanceScaling = version.isAtLeast("1.16", "20w17a");
+        boolean hasSimulationDistance = version.isAtLeast("1.18", "21w38a");
+        boolean hasGraphicsPreset = version.isAtLeast("1.21.11", "25w41a");
+
+        if (!hasModernDistanceKey) {
             settings.put("viewDistance", String.valueOf(renderDistance));
         } else {
             settings.put("renderDistance", String.valueOf(renderDistance));
         }
 
-        // fancyGraphics was replaced by graphicsMode in 1.16, then by
-        // graphicsPreset in 1.21.11. The value formats differ by generation.
-        if (version.compareTo("1.16") < 0) {
+        // fancyGraphics was replaced in the 1.16 pre-release series by
+        // graphicsMode, which was later replaced by graphicsPreset in 25w41a.
+        if (version.compareTo("1.16-pre1") < 0) {
             settings.put("fancyGraphics", "false");
-        } else if (version.compareTo("1.21.11") < 0) {
+        } else if (!hasGraphicsPreset) {
             settings.put("graphicsMode", "0");
         } else {
             settings.put("graphicsPreset", "fast");
         }
 
-        // Older clients use a boolean, many intervening releases accept numeric
-        // levels, and current releases use a boolean again.
-        if (version.compareTo("1.8") < 0 || version.compareTo("1.21.11") >= 0) {
+        // Older clients use a boolean, intervening releases accept numeric
+        // levels, and the latest graphics preset schema uses a boolean again.
+        if (version.compareTo("1.8") < 0 || hasGraphicsPreset) {
             settings.put("ao", "false");
         } else {
             settings.put("ao", "0");
@@ -84,33 +95,34 @@ public final class PerformanceProfileOptions {
 
         settings.put("particles", "2");
 
-        if (version.compareTo("1.7.2") >= 0) {
+        if (hasModernDistanceKey) {
             settings.put("mipmapLevels", "0");
         }
-        if (version.compareTo("1.8.1") >= 0) {
+        if (version.compareTo("1.8.1-pre4") >= 0) {
             settings.put("entityShadows", "false");
         }
 
-        // The clouds option was renamed from "clouds" to "renderClouds" in 1.8.
-        if (version.compareTo("1.8") >= 0) {
+        // The clouds option was renamed from "clouds" to "renderClouds" in
+        // snapshot 14w25a, before the 1.8 release.
+        if (hasCloudStatusKey) {
             settings.put("renderClouds", "false");
         } else {
             settings.put("clouds", "false");
         }
 
-        if (version.compareTo("1.13") >= 0) {
+        if (hasBiomeBlend) {
             settings.put("biomeBlendRadius", "0");
         }
-        if (version.compareTo("1.16") >= 0) {
+        if (hasEntityDistanceScaling) {
             settings.put("entityDistanceScaling", ramSaver ? "0.5" : "0.75");
         }
-        if (version.compareTo("1.18") >= 0) {
+        if (hasSimulationDistance) {
             settings.put("simulationDistance", ramSaver ? "4" : "6");
         }
 
-        // maxFps was added in 1.7.2. On older clients we avoid writing an
-        // unrelated/unsupported key instead of assuming their legacy FPS enum.
-        if (ramSaver && version.compareTo("1.7.2") >= 0) {
+        // maxFps replaced the old FPS mode in snapshot 13w38a. Older clients
+        // use an enum rather than a numeric cap, so do not invent maxFps there.
+        if (ramSaver && hasModernDistanceKey) {
             settings.put("maxFps", "60");
         }
 

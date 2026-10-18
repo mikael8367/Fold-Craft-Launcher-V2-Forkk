@@ -419,6 +419,9 @@ public class LauncherSettingPage extends FCLPage implements LauncherSettingAdapt
             case SWITCH_FPS_BOOSTER:
                 sharedPreferences.edit().putBoolean("fpsBoosterEnabled", checked).apply();
                 break;
+            case SWITCH_FPS_BOOSTER_ULTRA:
+                sharedPreferences.edit().putBoolean("fpsBoosterUltraEnabled", checked).apply();
+                break;
             case SWITCH_RAM_SAVER:
                 sharedPreferences.edit().putBoolean("ramSaverEnabled", checked).apply();
                 break;

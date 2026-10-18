@@ -122,7 +122,7 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
 
         addContentView(menu.getLayout(), new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        applyMaxRefreshRatePolicy();
+        applyFpsBoosterPolicy(true);
         DisplayManager displayManager = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
         if (displayManager != null) {
             displayManager.registerDisplayListener(displayListener, null);
@@ -241,8 +241,27 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
     }
 
     private boolean isMaxRefreshRateEnabled() {
-        return menu instanceof GameMenu
-                && ((GameMenu) menu).getMenuSetting().isRequestMaxRefreshRate();
+        // FPS Booster may request the display's highest same-resolution refresh mode.
+        // Keep the in-game preference working independently of the launcher profile.
+        return isFpsBoosterEnabled()
+                || (menu instanceof GameMenu
+                && ((GameMenu) menu).getMenuSetting().isRequestMaxRefreshRate());
+    }
+
+    private boolean isFpsBoosterEnabled() {
+        return getSharedPreferences("launcher", MODE_PRIVATE)
+                .getBoolean("fpsBoosterEnabled", false);
+    }
+
+    /**
+     * Ask Android for sustained performance only while the game activity is active.
+     * This is a system hint, not an overclock; the device may ignore it or still throttle.
+     */
+    private void applyFpsBoosterPolicy(boolean active) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            getWindow().setSustainedPerformanceMode(active && isFpsBoosterEnabled());
+        }
+        applyMaxRefreshRatePolicy();
     }
 
     /** 当前关联的 Display；API 30 前走已废弃的 getDefaultDisplay */
@@ -385,6 +404,7 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
         if (menu != null) {
             menu.onPause();
         }
+        applyFpsBoosterPolicy(false);
         CallbackBridge.nativeSetWindowAttrib(LwjglGlfwKeycode.GLFW_FOCUSED, 0);
         CallbackBridge.nativeSetWindowAttrib(LwjglGlfwKeycode.GLFW_HOVERED, 0);
         super.onPause();
@@ -395,6 +415,7 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
         if (menu != null) {
             menu.onResume();
         }
+        applyFpsBoosterPolicy(true);
         CallbackBridge.nativeSetWindowAttrib(LwjglGlfwKeycode.GLFW_FOCUSED, 1);
         CallbackBridge.nativeSetWindowAttrib(LwjglGlfwKeycode.GLFW_HOVERED, 1);
         super.onResume();

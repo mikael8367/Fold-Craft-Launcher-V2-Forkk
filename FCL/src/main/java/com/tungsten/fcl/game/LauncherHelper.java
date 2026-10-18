@@ -245,6 +245,19 @@ public final class LauncherHelper {
                             }
                             // 强制分辨率已迁移到游戏内菜单（MenuSetting），启动前同步进静态配置
                             FCLBridge.initForceResolution(menuSetting);
+
+                            // FPS Booster uses a launcher-side render scale instead of changing options.txt.
+                            // 0.75x width/height renders ~56% as many pixels, which can materially help
+                            // GPU-bound devices; the trade-off is a softer image. Respect explicit forced
+                            // resolution because that mode has its own user-selected dimensions.
+                            boolean fpsBooster = context.getSharedPreferences("launcher", Context.MODE_PRIVATE)
+                                    .getBoolean("fpsBoosterEnabled", false);
+                            if (fpsBooster && !FCLBridge.FORCE_RESOLUTION) {
+                                double configuredScale = scaleFactor;
+                                scaleFactor = Math.min(scaleFactor, 0.75d);
+                                LOG.info("FPS Booster render scale: " + configuredScale + " -> " + scaleFactor);
+                            }
+
                             LaunchOptions launchOptions = repository.getLaunchOptions(selectedVersion, javaVersionRef.get(), profile.getGameDir(), scaleFactor, cursorOffset);
                             FCLGameLauncher launcher = new FCLGameLauncher(
                                     context,

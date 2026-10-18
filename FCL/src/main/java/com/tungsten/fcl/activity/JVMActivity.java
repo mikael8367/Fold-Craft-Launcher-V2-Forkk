@@ -254,8 +254,15 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
     }
 
     private boolean isFpsBoosterEnabled() {
+        android.content.SharedPreferences preferences =
+                getSharedPreferences("launcher", MODE_PRIVATE);
+        return preferences.getBoolean("fpsBoosterEnabled", false)
+                || preferences.getBoolean("fpsBoosterUltraEnabled", false);
+    }
+
+    private boolean isUltraFpsBoosterEnabled() {
         return getSharedPreferences("launcher", MODE_PRIVATE)
-                .getBoolean("fpsBoosterEnabled", false);
+                .getBoolean("fpsBoosterUltraEnabled", false);
     }
 
     /**
@@ -278,10 +285,11 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
      */
     private void updatePerformanceRenderScale() {
         FCLBridge.PERFORMANCE_RENDER_SCALE = com.tungsten.fcl.game.PerformanceRuntimeTuning
-                .getRenderScale(fpsBoosterActive, FCLBridge.FORCE_RESOLUTION);
+                .getRenderScale(fpsBoosterActive, isUltraFpsBoosterEnabled(), FCLBridge.FORCE_RESOLUTION);
         if (fpsBoosterActive) {
             Logging.LOG.log(Level.INFO, "FPS Booster render scale: "
                     + FCLBridge.PERFORMANCE_RENDER_SCALE
+                    + (isUltraFpsBoosterEnabled() ? " (ULTRA)" : " (standard)")
                     + " (about "
                     + Math.round(FCLBridge.PERFORMANCE_RENDER_SCALE
                     * FCLBridge.PERFORMANCE_RENDER_SCALE * 100)

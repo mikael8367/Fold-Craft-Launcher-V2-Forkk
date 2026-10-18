@@ -84,4 +84,9 @@ public class PerformanceRuntimeTuningTest {
             // Expected.
         }
     }
+    @Test
+    public void disabledProfilesAlsoKeepNativeRenderScale() {
+        assertEquals(1.0f, PerformanceRuntimeTuning.getRenderScale(false, false, false), 0.0001f);
+    }
+
 }

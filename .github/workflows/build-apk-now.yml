@@ -1,12 +1,7 @@
 name: Build APK now
 
-# The push trigger is temporarily limited to the performance tuning source file
-# so the explicitly requested APK is built once. Restore workflow_dispatch-only
-# after the triggering commit; future pushes must not build APKs automatically.
+# APK builds are manual only unless the user explicitly requests one.
 on:
-  push:
-    paths:
-      - 'FCL/src/main/java/com/tungsten/fcl/game/PerformanceRuntimeTuning.java'
   workflow_dispatch:
 
 jobs:

@@ -16,9 +16,9 @@ public class PerformanceRuntimeTuningTest {
     }
 
     @Test
-    public void fpsBoosterReducesRenderResolutionForGpuHeadroom() {
-        assertEquals(0.60f, PerformanceRuntimeTuning.getRenderScale(true, false), 0.0001f);
-        assertEquals(36.0f, PerformanceRuntimeTuning.getRenderScale(true, false)
+    public void fpsBoosterUsesAggressiveHalfScaleForGpuHeadroom() {
+        assertEquals(0.50f, PerformanceRuntimeTuning.getRenderScale(true, false), 0.0001f);
+        assertEquals(25.0f, PerformanceRuntimeTuning.getRenderScale(true, false)
                 * PerformanceRuntimeTuning.getRenderScale(true, false) * 100.0f, 0.0001f);
     }
 
@@ -36,7 +36,6 @@ public class PerformanceRuntimeTuningTest {
     @Test
     public void fpsProfileAddsG1AndFramePacingArgumentsOnly() {
         List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(8, true, false);
-
         assertTrue(arguments.contains("-XX:+UseG1GC"));
         assertTrue(arguments.contains("-XX:MaxGCPauseMillis=50"));
         assertTrue(arguments.contains("-XX:+ParallelRefProcEnabled"));
@@ -48,7 +47,6 @@ public class PerformanceRuntimeTuningTest {
     @Test
     public void ramSaverEncouragesHeapReclamationWithoutOverridingHeapLimit() {
         List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(8, false, true);
-
         assertTrue(arguments.contains("-XX:+UseG1GC"));
         assertTrue(arguments.contains("-XX:MaxGCPauseMillis=200"));
         assertTrue(arguments.contains("-XX:MinHeapFreeRatio=10"));
@@ -59,15 +57,13 @@ public class PerformanceRuntimeTuningTest {
 
     @Test
     public void modernJavaCanUseStringDeduplicationForRamSaver() {
-        List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(17, false, true);
-
-        assertTrue(arguments.contains("-XX:+UseStringDeduplication"));
+        assertTrue(PerformanceRuntimeTuning.buildJvmArguments(17, false, true)
+                .contains("-XX:+UseStringDeduplication"));
     }
 
     @Test
     public void fpsProfileTakesPauseTargetWhenBothModesAreEnabled() {
         List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(21, true, true);
-
         assertEquals("-XX:MaxGCPauseMillis=50", arguments.get(1));
         assertTrue(arguments.contains("-XX:+ExplicitGCInvokesConcurrent"));
         assertFalse(arguments.contains("-XX:MinHeapFreeRatio=10"));
@@ -82,7 +78,7 @@ public class PerformanceRuntimeTuningTest {
             arguments.add("-XX:MaxGCPauseMillis=1");
             throw new AssertionError("Expected an immutable argument list");
         } catch (UnsupportedOperationException expected) {
-            // Expected: shared tuning definitions cannot be changed by callers.
+            // Expected.
         }
     }
 }

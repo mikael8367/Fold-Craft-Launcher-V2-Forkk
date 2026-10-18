@@ -18,6 +18,7 @@
 package com.tungsten.fcl.game;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 
 import com.mio.data.Renderer;
 import com.mio.manager.RendererManager;
@@ -42,6 +43,8 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import java.util.logging.Level;
 
@@ -66,6 +69,25 @@ public final class FCLGameLauncher extends DefaultLauncher {
         if (!configFolder.exists() && !configFolder.isDirectory()) {
             configFolder.mkdirs();
         }
+        File profileBackup = new File(optionsFile.getParentFile(), "options.txt.fcl-backup");
+        SharedPreferences launcherPrefs = context.getSharedPreferences("launcher", Context.MODE_PRIVATE);
+        boolean fpsBooster = launcherPrefs.getBoolean("fpsBoosterEnabled", false);
+        boolean ramSaver = launcherPrefs.getBoolean("ramSaverEnabled", false);
+        boolean performanceProfileEnabled = fpsBooster || ramSaver;
+
+        // Restore the original per-version options before reapplying the selected
+        // profile. This keeps disabling both switches reversible and idempotent.
+        if (profileBackup.isFile()) {
+            try {
+                Files.copy(profileBackup.toPath(), optionsFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                if (!performanceProfileEnabled && !profileBackup.delete()) {
+                    Logging.LOG.warning("Unable to delete performance profile backup: " + profileBackup);
+                }
+            } catch (IOException e) {
+                Logging.LOG.log(Level.WARNING, "Unable to restore Minecraft options backup", e);
+            }
+        }
+
         File splashFile = new File(configFolder, "splash.properties");
         try {
             FileUtils.writeText(splashFile, "enabled=false");
@@ -115,7 +137,50 @@ public final class FCLGameLauncher extends DefaultLauncher {
             gameOption = new GameOption(optionsFile.getParent());
         fixLang(gameOption);
         fixOptions(gameOption);
+        if (performanceProfileEnabled) {
+            if (!profileBackup.exists()) {
+                // Save the user's pre-profile options once per version.
+                gameOption.save();
+                try {
+                    Files.copy(optionsFile.toPath(), profileBackup.toPath());
+                } catch (IOException e) {
+                    Logging.LOG.log(Level.WARNING, "Unable to back up Minecraft options before performance tuning", e);
+                }
+            }
+            applyPerformanceProfile(gameOption, gameVersion, fpsBooster, ramSaver);
+        }
         gameOption.save();
+    }
+
+    /**
+     * Applies conservative options supported by most Minecraft generations.
+     * The game ignores settings it does not recognize; version-specific keys
+     * are only added when that option exists in the corresponding generation.
+     */
+    private void applyPerformanceProfile(GameOption gameOption, GameVersionNumber gameVersion,
+                                         boolean fpsBooster, boolean ramSaver) {
+        int renderDistance = ramSaver ? 4 : 6;
+        gameOption.set("renderDistance", String.valueOf(renderDistance));
+        gameOption.set("fancyGraphics", "false");
+        gameOption.set("graphics", "0");
+        gameOption.set("ao", "0");
+        gameOption.set("ambientOcclusion", "0");
+        gameOption.set("particles", "2");
+        gameOption.set("mipmapLevels", "0");
+        gameOption.set("entityShadows", "false");
+        gameOption.set("clouds", "false");
+        gameOption.set("renderClouds", "false");
+        gameOption.set("maxFps", "60");
+
+        if (gameVersion.compareTo("1.15") >= 0) {
+            gameOption.set("biomeBlendRadius", "0");
+        }
+        if (gameVersion.compareTo("1.16") >= 0) {
+            gameOption.set("entityDistanceScaling", ramSaver ? "0.5" : "0.75");
+        }
+        if (gameVersion.compareTo("1.18") >= 0) {
+            gameOption.set("simulationDistance", ramSaver ? "4" : "6");
+        }
     }
 
     private void fixOptions(GameOption gameOption) {

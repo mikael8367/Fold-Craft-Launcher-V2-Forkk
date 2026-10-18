@@ -60,6 +60,8 @@ enum class LauncherSettingTag {
 
     // 开关行
     SWITCH_AUTO_EXIT,
+    SWITCH_FPS_BOOSTER,
+    SWITCH_RAM_SAVER,
     SWITCH_IGNORE_NOTCH,
     SWITCH_CLOSE_SKIN_MODEL,
     SWITCH_DISABLE_FULLSCREEN_INPUT,
@@ -146,6 +148,20 @@ class LauncherSettingAdapter(
                 R.string.settings_launcher_language, languageList,
                 LocaleUtils.getLanguage(context), LauncherSettingTag.SPINNER_LANGUAGE,
                 R.string.settings_launcher_language_desc,
+            ),
+            Row.SwitchRow(
+                R.string.settings_launcher_fps_booster,
+                { prefs.getBoolean("fpsBoosterEnabled", false) },
+                LauncherSettingTag.SWITCH_FPS_BOOSTER,
+                R.string.settings_launcher_fps_booster_desc,
+                group = SettingGroup.Launcher
+            ),
+            Row.SwitchRow(
+                R.string.settings_launcher_ram_saver,
+                { prefs.getBoolean("ramSaverEnabled", false) },
+                LauncherSettingTag.SWITCH_RAM_SAVER,
+                R.string.settings_launcher_ram_saver_desc,
+                group = SettingGroup.Launcher
             ),
             Row.ButtonRow(
                 R.string.settings_launcher_upgrade,

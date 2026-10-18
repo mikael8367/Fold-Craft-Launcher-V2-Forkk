@@ -3,6 +3,9 @@ package com.tungsten.fcl.game;
 import com.tungsten.fclcore.util.versioning.GameVersionNumber;
 
 import java.util.Arrays;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +44,21 @@ public final class PerformanceProfileOptions {
 
     public static List<String> getManagedOptionKeys() {
         return MANAGED_OPTION_KEYS;
+    }
+
+    /**
+     * Preferences must follow the options.txt file, not the version ID.
+     * Multiple instances can share .minecraft/options.txt when game-directory
+     * isolation is disabled; in that case their profile and backup state is shared.
+     */
+    public static String statePreferenceKeyFor(String optionsPath) {
+        if (optionsPath == null || optionsPath.trim().isEmpty()) {
+            throw new IllegalArgumentException("optionsPath must not be empty");
+        }
+        String normalizedPath = new File(optionsPath).getAbsoluteFile().toPath().normalize().toString();
+        String encodedPath = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(normalizedPath.getBytes(StandardCharsets.UTF_8));
+        return "performanceRamSaverApplied:" + encodedPath;
     }
 
     /**

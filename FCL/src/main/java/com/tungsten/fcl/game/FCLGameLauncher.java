@@ -181,8 +181,8 @@ public final class FCLGameLauncher extends DefaultLauncher {
         }
         gameOption.save();
         if (performanceProfileApplied) {
-            if (maxFpsMatchesExpected(optionsFile, profileBaselineForState, ramSaver,
-                    restoreMaxFpsDuringProfile)) {
+            if (performanceOptionsMatchExpected(optionsFile, profileBaselineForState, gameVersion,
+                    fpsBooster, ramSaver, restoreMaxFpsDuringProfile)) {
                 launcherPrefs.edit().putBoolean(performanceStateKey, ramSaver).apply();
             } else {
                 Logging.LOG.warning("Performance profile write could not be verified; keeping the previous profile state.");
@@ -271,22 +271,64 @@ public final class FCLGameLauncher extends DefaultLauncher {
         }
     }
 
-    private boolean maxFpsMatchesExpected(File optionsFile, Map<String, String> baseline,
-                                          boolean ramSaver, boolean restoreBaseline) {
-        Map<String, String> current = readOptionValues(optionsFile);
-        if (current == null || baseline == null) {
+    private boolean performanceOptionsMatchExpected(File optionsFile, Map<String, String> baseline,
+                                                    GameVersionNumber gameVersion, boolean fpsBooster,
+                                                    boolean ramSaver, boolean verifyMaxFps) {
+        if (baseline == null) {
             return false;
         }
+
+        Map<String, String> expected = new HashMap<>();
+        for (String key : PERFORMANCE_PROFILE_KEYS) {
+            if (baseline.containsKey(key)) {
+                expected.put(key, baseline.get(key));
+            }
+        }
+        expected.put("renderDistance", String.valueOf(ramSaver ? 4 : (fpsBooster ? 6 : 8)));
+        expected.put("fancyGraphics", "false");
+        expected.put("graphics", "0");
+        expected.put("ao", "0");
+        expected.put("ambientOcclusion", "0");
+        expected.put("particles", "2");
+        expected.put("mipmapLevels", "0");
+        expected.put("entityShadows", "false");
+        expected.put("clouds", "false");
+        expected.put("renderClouds", "false");
+        if (gameVersion.compareTo("1.15") >= 0) {
+            expected.put("biomeBlendRadius", "0");
+        }
+        if (gameVersion.compareTo("1.16") >= 0) {
+            expected.put("entityDistanceScaling", ramSaver ? "0.5" : "0.75");
+        }
+        if (gameVersion.compareTo("1.18") >= 0) {
+            expected.put("simulationDistance", ramSaver ? "4" : "6");
+        }
         if (ramSaver) {
-            return "60".equals(current.get("maxFps"));
+            expected.put("maxFps", "60");
+        } else if (verifyMaxFps && baseline.containsKey("maxFps")) {
+            expected.put("maxFps", baseline.get("maxFps"));
         }
-        if (!restoreBaseline) {
-            return true;
+
+        Map<String, String> current = readOptionValues(optionsFile);
+        if (current == null) {
+            return false;
         }
-        if (baseline.containsKey("maxFps")) {
-            return baseline.get("maxFps").equals(current.get("maxFps"));
+        for (String key : PERFORMANCE_PROFILE_KEYS) {
+            if (expected.containsKey(key)) {
+                if (!expected.get(key).equals(current.get(key))) {
+                    return false;
+                }
+            } else if (current.containsKey(key)) {
+                return false;
+            }
         }
-        return !current.containsKey("maxFps");
+        if (ramSaver || verifyMaxFps) {
+            if (expected.containsKey("maxFps")) {
+                return expected.get("maxFps").equals(current.get("maxFps"));
+            }
+            return !current.containsKey("maxFps");
+        }
+        return true;
     }
 
     private boolean performanceOptionsMatchBaseline(File optionsFile, Map<String, String> baseline,

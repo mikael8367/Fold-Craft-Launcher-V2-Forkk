@@ -20,6 +20,7 @@ package com.tungsten.fcl.game;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import com.mio.JavaManager;
 import com.mio.data.Renderer;
 import com.mio.manager.RendererManager;
 import com.mio.util.LauncherUtilKt;
@@ -122,7 +123,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
         }
 
         JavaVersion javaVersion = options.getJava().isAuto()
-                ? JavaVersion.getSuitableJavaVersion(version)
+                ? JavaManager.getSuitableJavaVersion(version)
                 : options.getJava();
         List<String> tuningArguments = PerformanceRuntimeTuning.buildJvmArguments(
                 javaVersion.getVersion(), fpsBooster, ramSaver);

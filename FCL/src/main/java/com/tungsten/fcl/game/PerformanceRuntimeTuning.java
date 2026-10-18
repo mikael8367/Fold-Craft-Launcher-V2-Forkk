@@ -7,13 +7,11 @@ import java.util.List;
 /**
  * Loader-independent JVM performance profiles for Android Minecraft.
  *
- * These arguments are appended at the common launcher layer, so they apply to
- * vanilla and every mod loader using the same JVM startup path (Forge, NeoForge,
- * Fabric, Quilt, and compatible loaders). They never rewrite options.txt or
- * loader-owned configuration files.
+ * These options affect the game JVM only. They do not rewrite Minecraft
+ * options.txt, loader-owned configuration files, or the configured heap limit.
  *
- * GC pause targets are soft goals, not FPS guarantees. A GPU-, renderer-, or
- * mod-limited game may not gain frames from JVM tuning alone.
+ * Garbage-collection settings are trade-offs, not a guaranteed FPS or RAM
+ * reduction. Actual results depend on Java version, mods, renderer and device.
  */
 public final class PerformanceRuntimeTuning {
 
@@ -28,9 +26,12 @@ public final class PerformanceRuntimeTuning {
     }
 
     /**
-     * Build runtime arguments without depending on a specific mod loader.
-     * Ultra mode uses more aggressive G1 pause goals only; it does not force
-     * unsupported JVM flags or override the user's selected heap size.
+     * Builds runtime arguments for the requested profiles.
+     *
+     * Ultra mode tightens G1's pause target. RAM Saver independently enables
+     * heap shrinking, less persistent soft-reference caches, fewer GC workers,
+     * and string deduplication on modern Java. When both profiles are active,
+     * the memory arguments are retained instead of being silently dropped.
      */
     public static List<String> buildJvmArguments(int javaMajorVersion,
                                                  boolean fpsBooster,
@@ -42,13 +43,13 @@ public final class PerformanceRuntimeTuning {
         }
 
         List<String> arguments = new ArrayList<>();
+        // G1 is required by the String Deduplication option used on newer Java.
         arguments.add("-XX:+UseG1GC");
 
         if (fpsProfile) {
             int pauseTarget;
             if (fpsBoosterUltra) {
-                // Java 17+ has more modern G1 behavior; Java 8 keeps a less
-                // aggressive target to avoid excessive GC work on older runtimes.
+                // Java 17+ has newer G1 behavior; keep legacy runtimes less aggressive.
                 pauseTarget = javaMajorVersion >= 17 ? 30 : 40;
             } else {
                 pauseTarget = 50;
@@ -59,21 +60,37 @@ public final class PerformanceRuntimeTuning {
             arguments.add("-XX:+ExplicitGCInvokesConcurrent");
 
             if (fpsBoosterUltra && javaMajorVersion >= 17) {
-                // Start concurrent marking earlier to reduce the risk of G1
-                // falling behind during allocation-heavy modded gameplay.
+                // Begin marking earlier to handle allocation-heavy modded sessions.
                 arguments.add("-XX:InitiatingHeapOccupancyPercent=25");
             }
         } else {
             arguments.add("-XX:MaxGCPauseMillis=200");
         }
 
-        // Heap shrinking and string deduplication can use extra CPU. Keep them
-        // exclusive to RAM Saver so the FPS profiles prioritize frame pacing.
-        if (ramSaver && !fpsProfile) {
-            arguments.add("-XX:MinHeapFreeRatio=10");
-            arguments.add("-XX:MaxHeapFreeRatio=25");
+        if (ramSaver) {
+            // Encourage heap commitment to shrink after collection where Xms permits.
+            // This never changes -Xmx or the user's configured min/max heap values.
+            arguments.add("-XX:MinHeapFreeRatio=5");
+            arguments.add("-XX:MaxHeapFreeRatio=20");
+
+            // Let soft-reference-backed caches expire sooner under memory pressure.
+            // This trades some cache reuse for lower retention; some mods may reload data.
+            arguments.add("-XX:SoftRefLRUPolicyMSPerMB=100");
+
+            // Reduce native thread-stack overhead on low-memory phones. Collection can
+            // take longer, so do not apply this to the FPS-only profile.
+            arguments.add("-XX:ParallelGCThreads=2");
+            arguments.add("-XX:ConcGCThreads=1");
+
+            // On modern G1 runtimes, deduplicate repeated Strings commonly held by mods.
             if (javaMajorVersion >= 17) {
                 arguments.add("-XX:+UseStringDeduplication");
+
+                // Start reclamation earlier for the RAM profile. Ultra mode already
+                // uses a tighter 25% threshold, so avoid conflicting duplicate flags.
+                if (!fpsBoosterUltra) {
+                    arguments.add("-XX:InitiatingHeapOccupancyPercent=30");
+                }
             }
         }
 
@@ -82,8 +99,7 @@ public final class PerformanceRuntimeTuning {
 
     /**
      * Native render-buffer scale for the standard FPS profile.
-     * This is applied by the launcher to the output buffer only; it does not
-     * rewrite options.txt or a mod-loader configuration file.
+     * This affects the output buffer only and does not rewrite options.txt.
      */
     public static float getRenderScale(boolean fpsBooster, boolean forceResolution) {
         if (forceResolution) {
@@ -93,12 +109,12 @@ public final class PerformanceRuntimeTuning {
     }
 
     /**
-     * Ultra mode reduces both render-buffer dimensions to 70%, which means
-     * roughly 49% of the pixels of full resolution. This can materially help
-     * GPU-bound phones, at the cost of a softer image. User-forced resolution
-     * always wins and is never scaled behind their back.
+     * Ultra mode uses 70% of each render-buffer dimension (49% of the pixels).
+     * A user-forced resolution always takes precedence.
      */
-    public static float getRenderScale(boolean fpsBooster, boolean ultraFps, boolean forceResolution) {
+    public static float getRenderScale(boolean fpsBooster,
+                                       boolean ultraFps,
+                                       boolean forceResolution) {
         if (forceResolution) {
             return 1.0f;
         }

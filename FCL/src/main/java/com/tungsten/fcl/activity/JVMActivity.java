@@ -59,6 +59,9 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
     /** 已请求的目标刷新率，0 表示未请求；DisplayListener 据此判断系统是否中途降档 */
     private float requestedRefreshRate = 0f;
 
+    /** FPS policy is active only while the game activity is in the foreground. */
+    private boolean fpsBoosterActive = false;
+
     /** 系统中途降档（智能刷新率/省电策略）后重新发起请求；1s 冷却防御部分 ROM 频繁回调 */
     private final DisplayManager.DisplayListener displayListener = new DisplayManager.DisplayListener() {
         private long lastRequestAt = 0L;
@@ -243,7 +246,7 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
     private boolean isMaxRefreshRateEnabled() {
         // FPS Booster may request the display's highest same-resolution refresh mode.
         // Keep the in-game preference working independently of the launcher profile.
-        return isFpsBoosterEnabled()
+        return fpsBoosterActive
                 || (menu instanceof GameMenu
                 && ((GameMenu) menu).getMenuSetting().isRequestMaxRefreshRate());
     }
@@ -258,8 +261,9 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
      * This is a system hint, not an overclock; the device may ignore it or still throttle.
      */
     private void applyFpsBoosterPolicy(boolean active) {
+        fpsBoosterActive = active && isFpsBoosterEnabled();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            getWindow().setSustainedPerformanceMode(active && isFpsBoosterEnabled());
+            getWindow().setSustainedPerformanceMode(fpsBoosterActive);
         }
         applyMaxRefreshRatePolicy();
     }

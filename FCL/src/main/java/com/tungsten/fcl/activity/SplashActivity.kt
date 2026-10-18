@@ -68,6 +68,27 @@ class SplashActivity : FCLActivity() {
         ImageUtil.loadInto(
             binding.background, ThemeEngine.getInstance().getTheme().getBackground(this)
         )
+        if (sharedPreferences.getBoolean("unofficialNoticeAccepted", false)) {
+            continueStartup()
+        } else {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Aviso: aplicativo não oficial")
+                .setMessage(
+                    "Esta é uma versão modificada e não oficial do Fold Craft Launcher. " +
+                        "Não é afiliada, endossada ou mantida pelos desenvolvedores originais, " +
+                        "pela Mojang ou pela Microsoft. Minecraft é uma marca da Mojang/Microsoft."
+                )
+                .setCancelable(false)
+                .setPositiveButton("Continuar") { _, _ ->
+                    sharedPreferences.edit { putBoolean("unofficialNoticeAccepted", true) }
+                    continueStartup()
+                }
+                .setNegativeButton("Sair") { _, _ -> finish() }
+                .show()
+        }
+    }
+
+    private fun continueStartup() {
         if (sharedPreferences.getBoolean("isAgree", false)) {
             checkPermission()
         } else {

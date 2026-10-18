@@ -8,8 +8,8 @@ import java.util.List;
  * Builds conservative JVM-only performance options.
  *
  * This class intentionally does not read or write Minecraft options.txt.
- * JVM flags can reduce garbage-collection pauses or heap retention, but cannot
- * guarantee a frame-rate increase or eliminate memory use from mods/native code.
+ * JVM flags and a lower render buffer can improve frame pacing on GPU-bound
+ * devices, but cannot guarantee a frame-rate increase in CPU-bound worlds.
  */
 public final class PerformanceRuntimeTuning {
 
@@ -17,21 +17,14 @@ public final class PerformanceRuntimeTuning {
     }
 
     /**
-     * GPU-bound games can benefit from rendering fewer pixels. A 0.60 scale
-     * renders about 36% as many pixels as full resolution. Respect an explicit
-     * user-selected fixed resolution instead of silently overriding it.
+     * Aggressive low-end-device render scale. 0.50 means the game renders
+     * one quarter of full-resolution pixels, then Android scales the buffer
+     * to the visible TextureView. Explicit fixed resolution remains untouched.
      */
     public static float getRenderScale(boolean fpsBooster, boolean forceResolution) {
-        return fpsBooster && !forceResolution ? 0.60f : 1.0f;
+        return fpsBooster && !forceResolution ? 0.50f : 1.0f;
     }
 
-    /**
-     * Returns JVM arguments for the enabled profiles.
-     *
-     * @param javaMajorVersion selected Java major version
-     * @param fpsBooster whether the FPS profile is enabled
-     * @param ramSaver whether the RAM profile is enabled
-     */
     public static List<String> buildJvmArguments(int javaMajorVersion,
                                                  boolean fpsBooster,
                                                  boolean ramSaver) {
@@ -43,29 +36,22 @@ public final class PerformanceRuntimeTuning {
         arguments.add("-XX:+UseG1GC");
 
         if (fpsBooster) {
-            // A tighter pause goal favors frame pacing, at the cost of potentially
-            // more frequent GC work. This is a target, not a maximum-pause guarantee.
+            // A pause goal is only a GC target, not a guarantee.
             arguments.add("-XX:MaxGCPauseMillis=50");
             arguments.add("-XX:+ParallelRefProcEnabled");
-
-            // With G1, explicit System.gc() requests can trigger a concurrent cycle
-            // instead of a stop-the-world full collection, reducing mod-induced stalls.
+            // Avoid a full stop-the-world collection for explicit System.gc() requests.
             arguments.add("-XX:+ExplicitGCInvokesConcurrent");
         } else {
-            // RAM-only mode avoids the more aggressive FPS pause target.
             arguments.add("-XX:MaxGCPauseMillis=200");
         }
 
         if (ramSaver) {
-            // Aggressive heap shrinking can increase collection frequency. When FPS
-            // mode is also enabled, prioritize frame pacing and skip these two flags.
+            // Avoid aggressive heap shrinking when FPS mode is also enabled:
+            // frequent collections can hurt frame time on a low-end CPU.
             if (!fpsBooster) {
                 arguments.add("-XX:MinHeapFreeRatio=10");
                 arguments.add("-XX:MaxHeapFreeRatio=25");
             }
-
-            // String deduplication is available on modern Java runtimes with G1 and
-            // may reduce duplicate string storage in large modpacks.
             if (javaMajorVersion >= 17) {
                 arguments.add("-XX:+UseStringDeduplication");
             }

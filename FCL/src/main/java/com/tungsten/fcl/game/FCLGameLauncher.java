@@ -116,7 +116,8 @@ public final class FCLGameLauncher extends DefaultLauncher {
     @Override
     protected void appendJvmArgs(CommandBuilder result) {
         SharedPreferences preferences = context.getSharedPreferences("launcher", Context.MODE_PRIVATE);
-        boolean fpsBooster = preferences.getBoolean("fpsBoosterEnabled", false);
+        boolean fpsBooster = preferences.getBoolean("fpsBoosterEnabled", false)
+                || preferences.getBoolean("fpsBoosterUltraEnabled", false);
         boolean ramSaver = preferences.getBoolean("ramSaverEnabled", false);
         if (!fpsBooster && !ramSaver) {
             return;

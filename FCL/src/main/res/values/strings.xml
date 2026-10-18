@@ -1109,7 +1109,7 @@
     <string name="settings_launcher_fps_booster">FPS Booster</string>
     <string name="settings_launcher_fps_booster_desc">Applies lighter graphics and shorter render distance to improve performance. Your configured FPS limit is preserved. Applied when the game starts.</string>
     <string name="settings_launcher_ram_saver">Reduce RAM usage</string>
-    <string name="settings_launcher_ram_saver_desc">Reduces render and simulation distance, particles and visual effects, and uses a 60 FPS cap to reduce rendering and memory pressure. It does not directly change the Java heap (Xmx); results vary by version, mods and world. Applied when the game starts.</string>
+    <string name="settings_launcher_ram_saver_desc">Reduces render and simulation distance, particles and visual effects, and caps the frame rate at 60 FPS on versions that support this option. It does not directly change the Java heap (Xmx); memory savings vary by version, mods and world. Applied when the game starts.</string>
     <string name="settings_launcher_upgrade">Update Launcher</string>
     <string name="settings_launcher_upgrade_desc">Check whether a new version of the launcher is available.</string>
     <string name="settings_launcher_upgrade_check">Check</string>

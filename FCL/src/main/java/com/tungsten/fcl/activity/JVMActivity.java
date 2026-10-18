@@ -279,21 +279,15 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
     }
 
     /**
-     * Lower the game render buffer only for the FPS profile. Explicit fixed
-     * resolution remains authoritative, and pointer conversion uses the same
-     * scale so touch/mouse positions stay aligned with the rendered image.
+     * Keep the render-buffer scale at 1.0 for every profile. FPS Booster may
+     * request Android sustained-performance mode and a same-resolution refresh
+     * rate, but it must never silently alter the user's game resolution.
      */
     private void updatePerformanceRenderScale() {
-        FCLBridge.PERFORMANCE_RENDER_SCALE = com.tungsten.fcl.game.PerformanceRuntimeTuning
-                .getRenderScale(fpsBoosterActive, isUltraFpsBoosterEnabled(), FCLBridge.FORCE_RESOLUTION);
+        FCLBridge.PERFORMANCE_RENDER_SCALE = 1.0f;
         if (fpsBoosterActive) {
-            Logging.LOG.log(Level.INFO, "FPS Booster render scale: "
-                    + FCLBridge.PERFORMANCE_RENDER_SCALE
-                    + (isUltraFpsBoosterEnabled() ? " (ULTRA)" : " (standard)")
-                    + " (about "
-                    + Math.round(FCLBridge.PERFORMANCE_RENDER_SCALE
-                    * FCLBridge.PERFORMANCE_RENDER_SCALE * 100)
-                    + "% of full-resolution pixels)");
+            Logging.LOG.log(Level.INFO,
+                    "FPS Booster active: render resolution unchanged; sustained-performance hint requested");
         }
     }
 

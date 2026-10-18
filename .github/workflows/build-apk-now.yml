@@ -2,12 +2,6 @@ name: Build APK now
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'FCL/src/main/java/com/tungsten/fcl/game/PerformanceRuntimeTuning.java'
-      - 'FCL/src/main/java/com/tungsten/fcl/activity/JVMActivity.java'
-      - 'FCL/src/main/java/com/tungsten/fcl/game/FCLGameLauncher.java'
-      - 'FCL/src/test/java/com/tungsten/fcl/game/PerformanceRuntimeTuningTest.java'
 
 jobs:
   build:

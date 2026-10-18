@@ -42,6 +42,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 
@@ -107,9 +108,9 @@ public final class FCLGameLauncher extends DefaultLauncher {
     }
 
     /**
-     * Apply performance profiles to the Java process, not to Minecraft's
-     * options.txt. CommandBuilder keeps existing/user-provided JVM flags when
-     * one of these defaults was already specified.
+     * Apply runtime-level performance options without rewriting Minecraft's
+     * options.txt. Existing user-specified JVM options take precedence because
+     * CommandBuilder adds these as defaults.
      */
     @Override
     protected void appendJvmArgs(CommandBuilder result) {
@@ -123,8 +124,16 @@ public final class FCLGameLauncher extends DefaultLauncher {
         JavaVersion javaVersion = options.getJava().isAuto()
                 ? JavaVersion.getSuitableJavaVersion(version)
                 : options.getJava();
-        result.addAllDefault(PerformanceRuntimeTuning.buildJvmArguments(
-                javaVersion.getVersion(), fpsBooster, ramSaver));
+        List<String> tuningArguments = PerformanceRuntimeTuning.buildJvmArguments(
+                javaVersion.getVersion(), fpsBooster, ramSaver);
+        if (!tuningArguments.isEmpty()) {
+            result.addAllDefault(tuningArguments);
+            Logging.LOG.log(Level.INFO,
+                    "Performance tuning requested for Java " + javaVersion.getVersion()
+                            + " (FPS Booster=" + fpsBooster
+                            + ", RAM Saver=" + ramSaver
+                            + "): " + tuningArguments);
+        }
     }
 
     private void modifyIfConfigDetected(String config, String option, String replacement, boolean overwrite, Renderer... renderers) {

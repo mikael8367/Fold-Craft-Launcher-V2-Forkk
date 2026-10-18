@@ -52,13 +52,10 @@ import java.util.logging.Level;
 
 public final class FCLGameLauncher extends DefaultLauncher {
 
-    private static final String[] PERFORMANCE_PROFILE_KEYS = {
-            "renderDistance", "fancyGraphics", "graphics", "ao", "ambientOcclusion",
-            "particles", "mipmapLevels", "entityShadows", "clouds", "renderClouds",
-            "biomeBlendRadius", "entityDistanceScaling", "simulationDistance"
-    };
+    private static final String[] PERFORMANCE_PROFILE_KEYS =
+            PerformanceProfileOptions.getManagedOptionKeys().toArray(new String[0]);
 
-    public FCLGameLauncher(Context context, GameRepository repository, Version version, AuthInfo authInfo, LaunchOptions options) {
+        public FCLGameLauncher(Context context, GameRepository repository, Version version, AuthInfo authInfo, LaunchOptions options) {
         super(context, repository, version, authInfo, options);
     }
 
@@ -239,11 +236,13 @@ public final class FCLGameLauncher extends DefaultLauncher {
                     values.put(line.substring(0, colon), line.substring(colon + 1));
                 }
             }
-            if (values.isEmpty()) {
-                // An empty or wholly malformed backup cannot prove the original
-                // profile-managed values. Keep it for manual recovery and do not
-                // apply a profile that we could not safely undo.
-                Logging.LOG.warning("Minecraft options backup has no valid entries: " + file);
+            // Every standard Minecraft options.txt generation has one of these
+            // render-distance keys. An unrelated "key:value" line alone is not
+            // enough to trust a possibly truncated or corrupt backup.
+            boolean hasRenderDistance = values.containsKey("renderDistance")
+                    || values.containsKey("viewDistance");
+            if (values.isEmpty() || !hasRenderDistance) {
+                Logging.LOG.warning("Minecraft options file is empty, malformed, or missing render distance: " + file);
                 return null;
             }
             return values;
@@ -256,6 +255,11 @@ public final class FCLGameLauncher extends DefaultLauncher {
     private void restorePerformanceOptions(GameOption gameOption, Map<String, String> baseline,
                                            boolean restoreMaxFps) {
         for (String key : PERFORMANCE_PROFILE_KEYS) {
+            // FPS-only mode never owns this option; preserve the player's limit
+            // unless we are undoing a previously applied RAM Saver cap.
+            if ("maxFps".equals(key)) {
+                continue;
+            }
             if (baseline.containsKey(key)) {
                 gameOption.set(key, baseline.get(key));
             } else {
@@ -271,49 +275,38 @@ public final class FCLGameLauncher extends DefaultLauncher {
         }
     }
 
-    private boolean performanceOptionsMatchExpected(File optionsFile, Map<String, String> baseline,
+        private boolean performanceOptionsMatchExpected(File optionsFile, Map<String, String> baseline,
                                                     GameVersionNumber gameVersion, boolean fpsBooster,
                                                     boolean ramSaver, boolean verifyMaxFps) {
         if (baseline == null) {
             return false;
         }
 
-        Map<String, String> expected = new HashMap<>();
-        for (String key : PERFORMANCE_PROFILE_KEYS) {
-            if (baseline.containsKey(key)) {
-                expected.put(key, baseline.get(key));
-            }
-        }
-        expected.put("renderDistance", String.valueOf(ramSaver ? 4 : (fpsBooster ? 6 : 8)));
-        expected.put("fancyGraphics", "false");
-        expected.put("graphics", "0");
-        expected.put("ao", "0");
-        expected.put("ambientOcclusion", "0");
-        expected.put("particles", "2");
-        expected.put("mipmapLevels", "0");
-        expected.put("entityShadows", "false");
-        expected.put("clouds", "false");
-        expected.put("renderClouds", "false");
-        if (gameVersion.compareTo("1.15") >= 0) {
-            expected.put("biomeBlendRadius", "0");
-        }
-        if (gameVersion.compareTo("1.16") >= 0) {
-            expected.put("entityDistanceScaling", ramSaver ? "0.5" : "0.75");
-        }
-        if (gameVersion.compareTo("1.18") >= 0) {
-            expected.put("simulationDistance", ramSaver ? "4" : "6");
-        }
-        if (ramSaver) {
-            expected.put("maxFps", "60");
-        } else if (verifyMaxFps && baseline.containsKey("maxFps")) {
-            expected.put("maxFps", baseline.get("maxFps"));
-        }
-
+        Map<String, String> expected = PerformanceProfileOptions.buildProfile(
+                gameVersion, fpsBooster, ramSaver);
         Map<String, String> current = readOptionValues(optionsFile);
         if (current == null) {
             return false;
         }
+
         for (String key : PERFORMANCE_PROFILE_KEYS) {
+            if ("maxFps".equals(key)) {
+                if (ramSaver) {
+                    if (!"60".equals(current.get(key))) {
+                        return false;
+                    }
+                } else if (verifyMaxFps) {
+                    if (baseline.containsKey(key)) {
+                        if (!baseline.get(key).equals(current.get(key))) {
+                            return false;
+                        }
+                    } else if (current.containsKey(key)) {
+                        return false;
+                    }
+                }
+                continue;
+            }
+
             if (expected.containsKey(key)) {
                 if (!expected.get(key).equals(current.get(key))) {
                     return false;
@@ -322,22 +315,19 @@ public final class FCLGameLauncher extends DefaultLauncher {
                 return false;
             }
         }
-        if (ramSaver || verifyMaxFps) {
-            if (expected.containsKey("maxFps")) {
-                return expected.get("maxFps").equals(current.get("maxFps"));
-            }
-            return !current.containsKey("maxFps");
-        }
         return true;
     }
 
-    private boolean performanceOptionsMatchBaseline(File optionsFile, Map<String, String> baseline,
+        private boolean performanceOptionsMatchBaseline(File optionsFile, Map<String, String> baseline,
                                                     boolean verifyMaxFps) {
         Map<String, String> current = readOptionValues(optionsFile);
         if (current == null) {
             return false;
         }
         for (String key : PERFORMANCE_PROFILE_KEYS) {
+            if ("maxFps".equals(key) && !verifyMaxFps) {
+                continue;
+            }
             if (baseline.containsKey(key)) {
                 if (!baseline.get(key).equals(current.get(key))) {
                     return false;
@@ -346,54 +336,41 @@ public final class FCLGameLauncher extends DefaultLauncher {
                 return false;
             }
         }
-        if (verifyMaxFps) {
-            if (baseline.containsKey("maxFps")) {
-                if (!baseline.get("maxFps").equals(current.get("maxFps"))) {
-                    return false;
-                }
-            } else if (current.containsKey("maxFps")) {
-                return false;
-            }
-        }
         return true;
     }
 
-    /**
+        /**
      * Applies conservative options supported by most Minecraft generations.
      * The game ignores settings it does not recognize; version-specific keys
      * are only added when that option exists in the corresponding generation.
      */
     private void applyPerformanceProfile(GameOption gameOption, GameVersionNumber gameVersion,
                                          boolean fpsBooster, boolean ramSaver) {
-        int renderDistance = ramSaver ? 4 : (fpsBooster ? 6 : 8);
-        gameOption.set("renderDistance", String.valueOf(renderDistance));
-        gameOption.set("fancyGraphics", "false");
-        gameOption.set("graphics", "0");
-        gameOption.set("ao", "0");
-        gameOption.set("ambientOcclusion", "0");
-        gameOption.set("particles", "2");
-        gameOption.set("mipmapLevels", "0");
-        gameOption.set("entityShadows", "false");
-        gameOption.set("clouds", "false");
-        gameOption.set("renderClouds", "false");
-        // The FPS Booster preserves the player's chosen FPS cap. The RAM saver
-        // uses a conservative cap to reduce rendering pressure and heat.
-        if (ramSaver) {
-            gameOption.set("maxFps", "60");
+        Map<String, String> profile = PerformanceProfileOptions.buildProfile(
+                gameVersion, fpsBooster, ramSaver);
+
+        for (String key : PERFORMANCE_PROFILE_KEYS) {
+            if ("maxFps".equals(key)) {
+                // Do not overwrite or remove the user's FPS limit in FPS-only
+                // mode. RAM Saver owns this option only when it sets a cap.
+                continue;
+            }
+            String value = profile.get(key);
+            if (value != null) {
+                gameOption.set(key, value);
+            } else {
+                // Remove stale keys written by older launcher releases and keys
+                // which were renamed or are unsupported in this Minecraft version.
+                gameOption.remove(key);
+            }
         }
 
-        if (gameVersion.compareTo("1.15") >= 0) {
-            gameOption.set("biomeBlendRadius", "0");
-        }
-        if (gameVersion.compareTo("1.16") >= 0) {
-            gameOption.set("entityDistanceScaling", ramSaver ? "0.5" : "0.75");
-        }
-        if (gameVersion.compareTo("1.18") >= 0) {
-            gameOption.set("simulationDistance", ramSaver ? "4" : "6");
+        if (profile.containsKey("maxFps")) {
+            gameOption.set("maxFps", profile.get("maxFps"));
         }
     }
 
-    private void fixOptions(GameOption gameOption) {
+        private void fixOptions(GameOption gameOption) {
         GameVersionNumber gameVersion = GameVersionNumber.asGameVersion(repository.getGameVersion(version).orElse("0.0"));
         gameOption.set("touchscreen", "false");
         if (gameVersion.compareTo("1.13") < 0) {

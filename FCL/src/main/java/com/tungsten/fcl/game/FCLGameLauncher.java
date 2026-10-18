@@ -159,7 +159,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
      */
     private void applyPerformanceProfile(GameOption gameOption, GameVersionNumber gameVersion,
                                          boolean fpsBooster, boolean ramSaver) {
-        int renderDistance = ramSaver ? 4 : 6;
+        int renderDistance = ramSaver ? 4 : (fpsBooster ? 6 : 8);
         gameOption.set("renderDistance", String.valueOf(renderDistance));
         gameOption.set("fancyGraphics", "false");
         gameOption.set("graphics", "0");

@@ -88,6 +88,35 @@ public class PerformanceProfileOptionsTest {
     }
 
     @Test
+    public void snapshotBeforeNewPresetSchemaKeepsGraphicsMode() {
+        Map<String, String> settings = profile("25w40a", false, true);
+
+        assertEquals("0", settings.get("graphicsMode"));
+        assertFalse(settings.containsKey("graphicsPreset"));
+        assertEquals("0", settings.get("ao"));
+    }
+
+    @Test
+    public void snapshotIntroducingGraphicsPresetsUsesNewSchemaImmediately() {
+        Map<String, String> settings = profile("25w41a", false, true);
+
+        assertEquals("fast", settings.get("graphicsPreset"));
+        assertFalse(settings.containsKey("graphicsMode"));
+        assertEquals("false", settings.get("ao"));
+    }
+
+    @Test
+    public void renderDistanceAndFpsCapUseTheirSnapshotCutover() {
+        Map<String, String> before = profile("13w37a", false, true);
+        Map<String, String> after = profile("13w38a", false, true);
+
+        assertEquals("4", before.get("viewDistance"));
+        assertFalse(before.containsKey("maxFps"));
+        assertEquals("4", after.get("renderDistance"));
+        assertEquals("60", after.get("maxFps"));
+    }
+
+    @Test
     public void snapshotsUsingNewReleaseNumberingUseModernOptions() {
         Map<String, String> settings = profile("26.3", true, true);
 

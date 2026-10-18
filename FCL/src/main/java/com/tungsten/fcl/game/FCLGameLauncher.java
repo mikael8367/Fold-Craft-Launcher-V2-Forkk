@@ -239,6 +239,13 @@ public final class FCLGameLauncher extends DefaultLauncher {
                     values.put(line.substring(0, colon), line.substring(colon + 1));
                 }
             }
+            if (values.isEmpty()) {
+                // An empty or wholly malformed backup cannot prove the original
+                // profile-managed values. Keep it for manual recovery and do not
+                // apply a profile that we could not safely undo.
+                Logging.LOG.warning("Minecraft options backup has no valid entries: " + file);
+                return null;
+            }
             return values;
         } catch (IOException e) {
             Logging.LOG.log(Level.WARNING, "Unable to read Minecraft options file: " + file, e);

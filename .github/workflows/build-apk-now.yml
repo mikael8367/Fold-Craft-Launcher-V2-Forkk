@@ -1,7 +1,10 @@
 name: Build APK now
 
-# APK builds are manual only unless the user explicitly requests one.
+# Temporary push trigger to fulfill the user's explicit APK build request.
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:

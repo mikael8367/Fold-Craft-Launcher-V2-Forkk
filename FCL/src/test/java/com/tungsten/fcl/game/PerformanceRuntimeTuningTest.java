@@ -26,7 +26,17 @@ public class PerformanceRuntimeTuningTest {
     }
 
     @Test
-    public void fixedAndNormalResolutionArePreserved() {
+    public void standardFpsProfileReducesNativeRenderBufferWithoutEditingOptions() {
+        assertEquals(0.85f, PerformanceRuntimeTuning.getRenderScale(true, false), 0.0001f);
+    }
+
+    @Test
+    public void ultraFpsProfileUsesMoreAggressiveNativeRenderScale() {
+        assertEquals(0.70f, PerformanceRuntimeTuning.getRenderScale(false, true, false), 0.0001f);
+    }
+
+    @Test
+    public void fixedResolutionIsPreservedAndDisabledProfileUsesFullScale() {
         assertEquals(1.0f, PerformanceRuntimeTuning.getRenderScale(true, true, true), 0.0001f);
         assertEquals(1.0f, PerformanceRuntimeTuning.getRenderScale(false, false), 0.0001f);
     }
@@ -61,7 +71,7 @@ public class PerformanceRuntimeTuningTest {
     @Test
     public void ultraFpsKeepsLegacyRuntimeFlagsCompatible() {
         List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(8, false, true, false);
-        assertTrue(arguments.contains("-XX:MaxGCPauseMillis=45"));
+        assertTrue(arguments.contains("-XX:MaxGCPauseMillis=40"));
         assertFalse(arguments.contains("-XX:InitiatingHeapOccupancyPercent=25"));
     }
 

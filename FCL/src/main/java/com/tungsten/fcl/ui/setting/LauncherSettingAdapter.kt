@@ -61,6 +61,7 @@ enum class LauncherSettingTag {
     // 开关行
     SWITCH_AUTO_EXIT,
     SWITCH_FPS_BOOSTER,
+    SWITCH_FPS_BOOSTER_ULTRA,
     SWITCH_RAM_SAVER,
     SWITCH_IGNORE_NOTCH,
     SWITCH_CLOSE_SKIN_MODEL,
@@ -154,6 +155,13 @@ class LauncherSettingAdapter(
                 { prefs.getBoolean("fpsBoosterEnabled", false) },
                 LauncherSettingTag.SWITCH_FPS_BOOSTER,
                 R.string.settings_launcher_fps_booster_desc,
+                group = SettingGroup.Launcher
+            ),
+            Row.SwitchRow(
+                R.string.settings_launcher_fps_booster_ultra,
+                { prefs.getBoolean("fpsBoosterUltraEnabled", false) },
+                LauncherSettingTag.SWITCH_FPS_BOOSTER_ULTRA,
+                R.string.settings_launcher_fps_booster_ultra_desc,
                 group = SettingGroup.Launcher
             ),
             Row.SwitchRow(

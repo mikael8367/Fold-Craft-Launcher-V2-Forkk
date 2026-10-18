@@ -142,13 +142,13 @@ public final class FCLGameLauncher extends DefaultLauncher {
             // Never change the profile-managed options unless a recoverable
             // baseline exists. The backup is taken before any profile is applied.
             boolean backupCreatedThisRun = false;
-            if (!profileBackup.isFile()) {
+            if (!isRegularFileSafely(profileBackup)) {
                 backupCreatedThisRun = createPerformanceBackup(optionsFile, profileBackup);
                 if (!backupCreatedThisRun) {
                     Logging.LOG.warning("Skipping performance profile because its options backup could not be created.");
                 }
             }
-            if (profileBackup.isFile()) {
+            if (isRegularFileSafely(profileBackup)) {
                 Map<String, String> baseline = readOptionValues(profileBackup);
                 if (baseline == null) {
                     Logging.LOG.warning("Skipping performance profile because its options backup could not be read.");
@@ -165,7 +165,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
                     performanceProfileApplied = true;
                 }
             }
-        } else if (profileBackup.isFile()) {
+        } else if (isRegularFileSafely(profileBackup)) {
             Map<String, String> baseline = readOptionValues(profileBackup);
             if (baseline != null) {
                 boolean restoreMaxFps = previousRamSaver || !hasPreviousPerformanceState;
@@ -187,7 +187,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
         }
         if (baselineToVerify != null) {
             if (performanceOptionsMatchBaseline(optionsFile, baselineToVerify, verifyMaxFpsBaseline)) {
-                if (profileBackup.delete()) {
+                if (deleteFileSafely(profileBackup)) {
                     launcherPrefs.edit().remove(performanceStateKey).apply();
                 } else {
                     Logging.LOG.warning("Unable to delete performance profile backup: " + profileBackup);
@@ -202,7 +202,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
     private boolean createPerformanceBackup(File optionsFile, File profileBackup) {
         File tempBackup = new File(profileBackup.getParentFile(), profileBackup.getName() + ".tmp");
         try {
-            if (!optionsFile.isFile()) {
+            if (!isRegularFileSafely(optionsFile)) {
                 Logging.LOG.warning("Cannot back up Minecraft options because options.txt is missing.");
                 return false;
             }
@@ -213,46 +213,80 @@ public final class FCLGameLauncher extends DefaultLauncher {
             } catch (AtomicMoveNotSupportedException e) {
                 Files.move(tempBackup.toPath(), profileBackup.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
-            return profileBackup.isFile();
-        } catch (IOException e) {
-            if (tempBackup.exists() && !tempBackup.delete()) {
-                Logging.LOG.warning("Unable to delete temporary performance backup: " + tempBackup);
+            return isRegularFileSafely(profileBackup);
+        } catch (IOException | SecurityException e) {
+            try {
+                if (tempBackup.exists() && !deleteFileSafely(tempBackup)) {
+                    Logging.LOG.warning("Unable to delete temporary performance backup: " + tempBackup);
+                }
+            } catch (SecurityException cleanupError) {
+                e.addSuppressed(cleanupError);
             }
             Logging.LOG.log(Level.WARNING, "Unable to back up Minecraft options before performance tuning", e);
             return false;
         }
     }
 
-    private Map<String, String> readOptionValues(File file) {
-        if (file == null || !file.isFile()) {
+    private boolean isRegularFileSafely(File file) {
+        try {
+            return file != null && file.isFile();
+        } catch (SecurityException e) {
+            Logging.LOG.log(Level.WARNING, "Unable to inspect performance profile file: " + file, e);
+            return false;
+        }
+    }
+
+    private boolean deleteFileSafely(File file) {
+        try {
+            return file != null && file.delete();
+        } catch (SecurityException e) {
+            Logging.LOG.log(Level.WARNING, "Unable to delete performance profile file: " + file, e);
+            return false;
+        }
+    }
+
+        private Map<String, String> readOptionValues(File file) {
+        if (file == null) {
             return null;
         }
+
         Map<String, String> values = new HashMap<>();
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                int colon = line.indexOf(':');
-                if (colon > 0) {
-                    values.put(line.substring(0, colon), line.substring(colon + 1));
+        try {
+            if (!isRegularFileSafely(file)) {
+                return null;
+            }
+            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    int colon = line.indexOf(':');
+                    if (colon > 0) {
+                        values.put(line.substring(0, colon), line.substring(colon + 1));
+                    }
                 }
             }
-            // Every standard Minecraft options.txt generation has one of these
-            // render-distance keys. An unrelated "key:value" line alone is not
-            // enough to trust a possibly truncated or corrupt backup.
+
+            // A valid backup must contain a distance key plus several managed
+            // settings. One valid line may simply be a truncated/corrupt backup.
             boolean hasRenderDistance = values.containsKey("renderDistance")
                     || values.containsKey("viewDistance");
-            if (values.isEmpty() || !hasRenderDistance) {
-                Logging.LOG.warning("Minecraft options file is empty, malformed, or missing render distance: " + file);
+            int recognizedOptionCount = 0;
+            for (String key : PERFORMANCE_PROFILE_KEYS) {
+                if (values.containsKey(key)) {
+                    recognizedOptionCount++;
+                }
+            }
+            if (!hasRenderDistance || recognizedOptionCount < 3) {
+                Logging.LOG.warning("Minecraft options file is incomplete or missing managed settings: " + file);
                 return null;
             }
             return values;
-        } catch (IOException e) {
+        } catch (IOException | SecurityException e) {
             Logging.LOG.log(Level.WARNING, "Unable to read Minecraft options file: " + file, e);
             return null;
         }
     }
 
-    private void restorePerformanceOptions(GameOption gameOption, Map<String, String> baseline,
+        private void restorePerformanceOptions(GameOption gameOption, Map<String, String> baseline,
                                            boolean restoreMaxFps) {
         for (String key : PERFORMANCE_PROFILE_KEYS) {
             // FPS-only mode never owns this option; preserve the player's limit

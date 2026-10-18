@@ -55,7 +55,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
     private static final String[] PERFORMANCE_PROFILE_KEYS =
             PerformanceProfileOptions.getManagedOptionKeys().toArray(new String[0]);
 
-        public FCLGameLauncher(Context context, GameRepository repository, Version version, AuthInfo authInfo, LaunchOptions options) {
+    public FCLGameLauncher(Context context, GameRepository repository, Version version, AuthInfo authInfo, LaunchOptions options) {
         super(context, repository, version, authInfo, options);
     }
 
@@ -275,7 +275,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
         }
     }
 
-        private boolean performanceOptionsMatchExpected(File optionsFile, Map<String, String> baseline,
+    private boolean performanceOptionsMatchExpected(File optionsFile, Map<String, String> baseline,
                                                     GameVersionNumber gameVersion, boolean fpsBooster,
                                                     boolean ramSaver, boolean verifyMaxFps) {
         if (baseline == null) {
@@ -291,11 +291,13 @@ public final class FCLGameLauncher extends DefaultLauncher {
 
         for (String key : PERFORMANCE_PROFILE_KEYS) {
             if ("maxFps".equals(key)) {
-                if (ramSaver) {
-                    if (!"60".equals(current.get(key))) {
+                if (expected.containsKey(key)) {
+                    if (!expected.get(key).equals(current.get(key))) {
                         return false;
                     }
                 } else if (verifyMaxFps) {
+                    // RAM Saver cannot set maxFps on pre-1.7.2 clients. In that
+                    // case verify restoration of the original value, not 60 FPS.
                     if (baseline.containsKey(key)) {
                         if (!baseline.get(key).equals(current.get(key))) {
                             return false;
@@ -318,7 +320,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
         return true;
     }
 
-        private boolean performanceOptionsMatchBaseline(File optionsFile, Map<String, String> baseline,
+    private boolean performanceOptionsMatchBaseline(File optionsFile, Map<String, String> baseline,
                                                     boolean verifyMaxFps) {
         Map<String, String> current = readOptionValues(optionsFile);
         if (current == null) {
@@ -339,7 +341,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
         return true;
     }
 
-        /**
+    /**
      * Applies conservative options supported by most Minecraft generations.
      * The game ignores settings it does not recognize; version-specific keys
      * are only added when that option exists in the corresponding generation.
@@ -370,7 +372,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
         }
     }
 
-        private void fixOptions(GameOption gameOption) {
+    private void fixOptions(GameOption gameOption) {
         GameVersionNumber gameVersion = GameVersionNumber.asGameVersion(repository.getGameVersion(version).orElse("0.0"));
         gameOption.set("touchscreen", "false");
         if (gameVersion.compareTo("1.13") < 0) {

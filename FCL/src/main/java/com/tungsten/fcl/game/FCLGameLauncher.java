@@ -170,7 +170,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
         gameOption.set("entityShadows", "false");
         gameOption.set("clouds", "false");
         gameOption.set("renderClouds", "false");
-        gameOption.set("maxFps", "60");
+        gameOption.set("maxFps", ramSaver ? "60" : "260");
 
         if (gameVersion.compareTo("1.15") >= 0) {
             gameOption.set("biomeBlendRadius", "0");

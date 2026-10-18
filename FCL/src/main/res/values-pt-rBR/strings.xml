@@ -917,4 +917,6 @@
     <string name="animation_idle_variant_1">Parado 1</string>
     <string name="animation_idle_variant_2">Parado 2</string>
     <string name="animation_idle_variant_3">Parado 3</string>
+    <string name="settings_launcher_fps_booster_ultra">FPS Booster Extremo</string>
+    <string name="settings_launcher_fps_booster_ultra_desc">Modo extremo de economia da GPU: renderiza com 30% da largura e da altura (cerca de 9% dos pixels da resolução completa). Pode aumentar o FPS quando a GPU é o gargalo, mas deixa a imagem bem pixelada. Não altera uma resolução fixa configurada manualmente. Aplicado ao iniciar o jogo.</string>
 </resources>

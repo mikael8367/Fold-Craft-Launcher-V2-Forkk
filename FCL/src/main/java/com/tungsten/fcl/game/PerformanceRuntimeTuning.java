@@ -5,11 +5,12 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Builds JVM and render-buffer performance options.
+ * Builds JVM-only performance options for Android Minecraft sessions.
  *
- * This class intentionally does not read or write Minecraft options.txt.
- * Render scaling can help GPU-bound devices, but cannot guarantee gains in
- * CPU-bound worlds or when a renderer/mod is the bottleneck.
+ * Performance profiles never change Minecraft's render-buffer dimensions or
+ * options.txt. These JVM flags are best-effort hints, not a guarantee of more
+ * FPS when the bottleneck is the GPU, CPU, thermal throttling, native code,
+ * or a particular mod.
  */
 public final class PerformanceRuntimeTuning {
 
@@ -17,22 +18,18 @@ public final class PerformanceRuntimeTuning {
     }
 
     /**
-     * Strong GPU-saving profile: 0.40 renders 16% of the original pixel count.
-     * An explicit user-selected fixed resolution always takes precedence.
+     * Compatibility method for existing callers. Always preserve resolution.
      */
     public static float getRenderScale(boolean fpsBooster, boolean forceResolution) {
-        return getRenderScale(fpsBooster, false, forceResolution);
+        return 1.0f;
     }
 
     /**
-     * Ultra mode is opt-in because 30% width/height means only 9% of the
-     * original pixel count. An explicit fixed resolution always wins.
+     * Compatibility overload for older callers. Ultra mode also preserves the
+     * exact render-buffer dimensions chosen by the user/launcher.
      */
     public static float getRenderScale(boolean fpsBooster, boolean ultraFps, boolean forceResolution) {
-        if (!fpsBooster || forceResolution) {
-            return 1.0f;
-        }
-        return ultraFps ? 0.30f : 0.40f;
+        return 1.0f;
     }
 
     public static List<String> buildJvmArguments(int javaMajorVersion,
@@ -46,17 +43,17 @@ public final class PerformanceRuntimeTuning {
         arguments.add("-XX:+UseG1GC");
 
         if (fpsBooster) {
-            // This is a target, not a guarantee; it favors shorter GC pauses.
+            // A pause goal is only a target; very low targets can waste CPU
+            // on repeated collections. Keep the profile conservative.
             arguments.add("-XX:MaxGCPauseMillis=50");
             arguments.add("-XX:+ParallelRefProcEnabled");
-            // Prefer concurrent work for explicit System.gc() requests.
             arguments.add("-XX:+ExplicitGCInvokesConcurrent");
         } else {
             arguments.add("-XX:MaxGCPauseMillis=200");
         }
 
-        // FPS mode wins when both profiles are enabled: avoid RAM-only heap
-        // shrinking and string deduplication work competing for CPU time.
+        // When FPS mode is enabled, avoid RAM-only heap-shrinking and
+        // string-deduplication overhead competing with the frame workload.
         if (ramSaver && !fpsBooster) {
             arguments.add("-XX:MinHeapFreeRatio=10");
             arguments.add("-XX:MaxHeapFreeRatio=25");

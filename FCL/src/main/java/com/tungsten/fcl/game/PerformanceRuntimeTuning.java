@@ -91,6 +91,13 @@ public final class PerformanceRuntimeTuning {
                 if (!fpsBoosterUltra) {
                     arguments.add("-XX:InitiatingHeapOccupancyPercent=30");
                 }
+
+                // In RAM-only mode, shrink to the free-heap target immediately instead
+                // of across several collections. This may increase GC-related stutter,
+                // so FPS profiles keep the incremental-shrink default.
+                if (!fpsProfile) {
+                    arguments.add("-XX:-ShrinkHeapInSteps");
+                }
             }
         }
 

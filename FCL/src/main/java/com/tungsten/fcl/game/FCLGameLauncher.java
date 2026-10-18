@@ -55,7 +55,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
     private static final String[] PERFORMANCE_PROFILE_KEYS = {
             "renderDistance", "fancyGraphics", "graphics", "ao", "ambientOcclusion",
             "particles", "mipmapLevels", "entityShadows", "clouds", "renderClouds",
-            "maxFps", "biomeBlendRadius", "entityDistanceScaling", "simulationDistance"
+            "biomeBlendRadius", "entityDistanceScaling", "simulationDistance"
     };
 
     public FCLGameLauncher(Context context, GameRepository repository, Version version, AuthInfo authInfo, LaunchOptions options) {
@@ -82,6 +82,9 @@ public final class FCLGameLauncher extends DefaultLauncher {
         boolean fpsBooster = launcherPrefs.getBoolean("fpsBoosterEnabled", false);
         boolean ramSaver = launcherPrefs.getBoolean("ramSaverEnabled", false);
         boolean performanceProfileEnabled = fpsBooster || ramSaver;
+        String performanceStateKey = "performanceRamSaverApplied:" + version.getId();
+        boolean hasPreviousPerformanceState = launcherPrefs.contains(performanceStateKey);
+        boolean previousRamSaver = launcherPrefs.getBoolean(performanceStateKey, false);
 
         File splashFile = new File(configFolder, "splash.properties");
         try {
@@ -134,35 +137,53 @@ public final class FCLGameLauncher extends DefaultLauncher {
         fixOptions(gameOption);
 
         Map<String, String> baselineToVerify = null;
+        boolean verifyMaxFpsBaseline = false;
+        boolean performanceProfileApplied = false;
         if (performanceProfileEnabled) {
             // Never change the profile-managed options unless a recoverable
             // baseline exists. The backup is taken before any profile is applied.
-            if (!profileBackup.isFile() && !createPerformanceBackup(optionsFile, profileBackup)) {
-                Logging.LOG.warning("Skipping performance profile because its options backup could not be created.");
-            } else {
+            boolean backupCreatedThisRun = false;
+            if (!profileBackup.isFile()) {
+                backupCreatedThisRun = createPerformanceBackup(optionsFile, profileBackup);
+                if (!backupCreatedThisRun) {
+                    Logging.LOG.warning("Skipping performance profile because its options backup could not be created.");
+                }
+            }
+            if (profileBackup.isFile()) {
                 Map<String, String> baseline = readOptionValues(profileBackup);
                 if (baseline == null) {
                     Logging.LOG.warning("Skipping performance profile because its options backup could not be read.");
                 } else {
-                    // Restore only keys controlled by this feature, not the entire
-                    // options.txt file. Other player settings remain untouched.
-                    restorePerformanceOptions(gameOption, baseline);
+                    // The FPS cap is owned only by RAM Saver. Preserve user changes
+                    // in FPS-only mode, but undo an older RAM Saver cap when modes
+                    // switch or a legacy backup has no recorded profile state.
+                    boolean restoreMaxFps = ramSaver || previousRamSaver
+                            || (!hasPreviousPerformanceState && !backupCreatedThisRun);
+                    restorePerformanceOptions(gameOption, baseline, restoreMaxFps);
                     applyPerformanceProfile(gameOption, gameVersion, fpsBooster, ramSaver);
+                    performanceProfileApplied = true;
                 }
             }
         } else if (profileBackup.isFile()) {
             Map<String, String> baseline = readOptionValues(profileBackup);
             if (baseline != null) {
-                restorePerformanceOptions(gameOption, baseline);
+                boolean restoreMaxFps = previousRamSaver || !hasPreviousPerformanceState;
+                restorePerformanceOptions(gameOption, baseline, restoreMaxFps);
                 baselineToVerify = baseline;
+                verifyMaxFpsBaseline = restoreMaxFps;
             } else {
                 Logging.LOG.warning("Unable to read performance profile backup; preserving it for recovery.");
             }
         }
         gameOption.save();
+        if (performanceProfileApplied) {
+            launcherPrefs.edit().putBoolean(performanceStateKey, ramSaver).apply();
+        }
         if (baselineToVerify != null) {
-            if (performanceOptionsMatchBaseline(optionsFile, baselineToVerify)) {
-                if (!profileBackup.delete()) {
+            if (performanceOptionsMatchBaseline(optionsFile, baselineToVerify, verifyMaxFpsBaseline)) {
+                if (profileBackup.delete()) {
+                    launcherPrefs.edit().remove(performanceStateKey).apply();
+                } else {
                     Logging.LOG.warning("Unable to delete performance profile backup: " + profileBackup);
                 }
             } else {
@@ -216,7 +237,8 @@ public final class FCLGameLauncher extends DefaultLauncher {
         }
     }
 
-    private void restorePerformanceOptions(GameOption gameOption, Map<String, String> baseline) {
+    private void restorePerformanceOptions(GameOption gameOption, Map<String, String> baseline,
+                                           boolean restoreMaxFps) {
         for (String key : PERFORMANCE_PROFILE_KEYS) {
             if (baseline.containsKey(key)) {
                 gameOption.set(key, baseline.get(key));
@@ -224,9 +246,17 @@ public final class FCLGameLauncher extends DefaultLauncher {
                 gameOption.remove(key);
             }
         }
+        if (restoreMaxFps) {
+            if (baseline.containsKey("maxFps")) {
+                gameOption.set("maxFps", baseline.get("maxFps"));
+            } else {
+                gameOption.remove("maxFps");
+            }
+        }
     }
 
-    private boolean performanceOptionsMatchBaseline(File optionsFile, Map<String, String> baseline) {
+    private boolean performanceOptionsMatchBaseline(File optionsFile, Map<String, String> baseline,
+                                                    boolean verifyMaxFps) {
         Map<String, String> current = readOptionValues(optionsFile);
         if (current == null) {
             return false;
@@ -237,6 +267,15 @@ public final class FCLGameLauncher extends DefaultLauncher {
                     return false;
                 }
             } else if (current.containsKey(key)) {
+                return false;
+            }
+        }
+        if (verifyMaxFps) {
+            if (baseline.containsKey("maxFps")) {
+                if (!baseline.get("maxFps").equals(current.get("maxFps"))) {
+                    return false;
+                }
+            } else if (current.containsKey("maxFps")) {
                 return false;
             }
         }

@@ -1,14 +1,8 @@
 name: Build APK now
 
-# Manual builds are always available. A one-time explicit build request also
-# builds when the render-scale implementation is updated.
+# APK builds are manual only unless the user explicitly requests one.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - "FCL/src/main/java/com/tungsten/fcl/activity/JVMActivity.java"
 
 jobs:
   build:

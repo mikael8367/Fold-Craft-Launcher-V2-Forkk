@@ -216,6 +216,11 @@ public class FCLBridge {
         if (FORCE_RESOLUTION) {
             x /= FORCE_RESOLUTION_SCALE;
             y /= FORCE_RESOLUTION_SCALE;
+        } else {
+            // Match camera deltas to the lower internal render-buffer coordinates
+            // used by FPS Booster, just as absolute pointer coordinates do.
+            x *= PERFORMANCE_RENDER_SCALE;
+            y *= PERFORMANCE_RENDER_SCALE;
         }
         CallbackBridge.sendCursorDelta(x, y);
     }

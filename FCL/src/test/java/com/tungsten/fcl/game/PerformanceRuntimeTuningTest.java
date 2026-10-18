@@ -23,6 +23,18 @@ public class PerformanceRuntimeTuningTest {
     }
 
     @Test
+    public void ultraFpsUsesNinePercentOfFullResolutionPixels() {
+        float scale = PerformanceRuntimeTuning.getRenderScale(true, true, false);
+        assertEquals(0.30f, scale, 0.0001f);
+        assertEquals(9.0f, scale * scale * 100.0f, 0.0001f);
+    }
+
+    @Test
+    public void ultraFpsDoesNotOverrideExplicitFixedResolution() {
+        assertEquals(1.0f, PerformanceRuntimeTuning.getRenderScale(true, true, true), 0.0001f);
+    }
+
+    @Test
     public void explicitFixedResolutionIsNeverOverridden() {
         assertEquals(1.0f, PerformanceRuntimeTuning.getRenderScale(true, true), 0.0001f);
         assertEquals(1.0f, PerformanceRuntimeTuning.getRenderScale(false, false), 0.0001f);

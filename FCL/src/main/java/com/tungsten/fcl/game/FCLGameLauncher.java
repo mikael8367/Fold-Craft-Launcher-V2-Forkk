@@ -18,6 +18,7 @@
 package com.tungsten.fcl.game;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 
 import com.mio.data.Renderer;
 import com.mio.manager.RendererManager;
@@ -42,10 +43,17 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 
 public final class FCLGameLauncher extends DefaultLauncher {
+
+    private static final String[] PERFORMANCE_PROFILE_KEYS =
+            PerformanceProfileOptions.getManagedOptionKeys().toArray(new String[0]);
 
     public FCLGameLauncher(Context context, GameRepository repository, Version version, AuthInfo authInfo, LaunchOptions options) {
         super(context, repository, version, authInfo, options);
@@ -63,9 +71,18 @@ public final class FCLGameLauncher extends DefaultLauncher {
         File optionsFile = new File(repository.getRunDirectory(version.getId()), "options.txt");
         File configFolder = new File(repository.getRunDirectory(version.getId()), "config");
 
-        if (!configFolder.exists() && !configFolder.isDirectory()) {
-            configFolder.mkdirs();
+        if (!configFolder.isDirectory() && !configFolder.mkdirs() && !configFolder.isDirectory()) {
+            Logging.LOG.warning("Unable to create Minecraft config directory: " + configFolder);
         }
+        File profileBackup = new File(optionsFile.getParentFile(), "options.txt.fcl-backup");
+        SharedPreferences launcherPrefs = context.getSharedPreferences("launcher", Context.MODE_PRIVATE);
+        boolean fpsBooster = launcherPrefs.getBoolean("fpsBoosterEnabled", false);
+        boolean ramSaver = launcherPrefs.getBoolean("ramSaverEnabled", false);
+        boolean performanceProfileEnabled = fpsBooster || ramSaver;
+        String performanceStateKey = PerformanceProfileOptions.statePreferenceKeyFor(optionsFile.getAbsolutePath());
+        boolean hasPreviousPerformanceState = launcherPrefs.contains(performanceStateKey);
+        boolean previousRamSaver = launcherPrefs.getBoolean(performanceStateKey, false);
+
         File splashFile = new File(configFolder, "splash.properties");
         try {
             FileUtils.writeText(splashFile, "enabled=false");
@@ -115,7 +132,278 @@ public final class FCLGameLauncher extends DefaultLauncher {
             gameOption = new GameOption(optionsFile.getParent());
         fixLang(gameOption);
         fixOptions(gameOption);
+
+        Map<String, String> baselineToVerify = null;
+        boolean verifyMaxFpsBaseline = false;
+        boolean performanceProfileApplied = false;
+        boolean restoreMaxFpsDuringProfile = false;
+        Map<String, String> profileBaselineForState = null;
+        if (performanceProfileEnabled) {
+            // Never change the profile-managed options unless a recoverable
+            // baseline exists. The backup is taken before any profile is applied.
+            boolean backupCreatedThisRun = false;
+            if (!isRegularFileSafely(profileBackup)) {
+                backupCreatedThisRun = createPerformanceBackup(optionsFile, profileBackup);
+                if (!backupCreatedThisRun) {
+                    Logging.LOG.warning("Skipping performance profile because its options backup could not be created.");
+                }
+            }
+            if (isRegularFileSafely(profileBackup)) {
+                Map<String, String> baseline = readOptionValues(profileBackup);
+                if (baseline == null) {
+                    Logging.LOG.warning("Skipping performance profile because its options backup could not be read.");
+                } else {
+                    // The FPS cap is owned only by RAM Saver. Preserve user changes
+                    // in FPS-only mode, but undo an older RAM Saver cap when modes
+                    // switch or a legacy backup has no recorded profile state.
+                    boolean restoreMaxFps = ramSaver || previousRamSaver
+                            || (!hasPreviousPerformanceState && !backupCreatedThisRun);
+                    restorePerformanceOptions(gameOption, baseline, restoreMaxFps);
+                    applyPerformanceProfile(gameOption, gameVersion, fpsBooster, ramSaver);
+                    restoreMaxFpsDuringProfile = restoreMaxFps;
+                    profileBaselineForState = baseline;
+                    performanceProfileApplied = true;
+                }
+            }
+        } else if (isRegularFileSafely(profileBackup)) {
+            Map<String, String> baseline = readOptionValues(profileBackup);
+            if (baseline != null) {
+                boolean restoreMaxFps = previousRamSaver || !hasPreviousPerformanceState;
+                restorePerformanceOptions(gameOption, baseline, restoreMaxFps);
+                baselineToVerify = baseline;
+                verifyMaxFpsBaseline = restoreMaxFps;
+            } else {
+                Logging.LOG.warning("Unable to read performance profile backup; preserving it for recovery.");
+            }
+        }
         gameOption.save();
+        if (performanceProfileApplied) {
+            if (performanceOptionsMatchExpected(optionsFile, profileBaselineForState, gameVersion,
+                    fpsBooster, ramSaver, restoreMaxFpsDuringProfile)) {
+                launcherPrefs.edit().putBoolean(performanceStateKey, ramSaver).apply();
+            } else {
+                Logging.LOG.warning("Performance profile write could not be verified; keeping the previous profile state.");
+            }
+        }
+        if (baselineToVerify != null) {
+            if (performanceOptionsMatchBaseline(optionsFile, baselineToVerify, verifyMaxFpsBaseline)) {
+                if (deleteFileSafely(profileBackup)) {
+                    launcherPrefs.edit().remove(performanceStateKey).apply();
+                } else {
+                    Logging.LOG.warning("Unable to delete performance profile backup: " + profileBackup);
+                }
+            } else {
+                // Keep the baseline so a failed write can be retried next launch.
+                Logging.LOG.warning("Performance profile options were not fully restored; keeping backup for retry.");
+            }
+        }
+    }
+
+    private boolean createPerformanceBackup(File optionsFile, File profileBackup) {
+        File tempBackup = new File(profileBackup.getParentFile(), profileBackup.getName() + ".tmp");
+        try {
+            if (!isRegularFileSafely(optionsFile)) {
+                Logging.LOG.warning("Cannot back up Minecraft options because options.txt is missing.");
+                return false;
+            }
+            Files.copy(optionsFile.toPath(), tempBackup.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            try {
+                Files.move(tempBackup.toPath(), profileBackup.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(tempBackup.toPath(), profileBackup.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+            return isRegularFileSafely(profileBackup);
+        } catch (IOException | SecurityException e) {
+            try {
+                if (tempBackup.exists() && !deleteFileSafely(tempBackup)) {
+                    Logging.LOG.warning("Unable to delete temporary performance backup: " + tempBackup);
+                }
+            } catch (SecurityException cleanupError) {
+                e.addSuppressed(cleanupError);
+            }
+            Logging.LOG.log(Level.WARNING, "Unable to back up Minecraft options before performance tuning", e);
+            return false;
+        }
+    }
+
+    private boolean isRegularFileSafely(File file) {
+        try {
+            return file != null && file.isFile();
+        } catch (SecurityException e) {
+            Logging.LOG.log(Level.WARNING, "Unable to inspect performance profile file: " + file, e);
+            return false;
+        }
+    }
+
+    private boolean deleteFileSafely(File file) {
+        try {
+            return file != null && file.delete();
+        } catch (SecurityException e) {
+            Logging.LOG.log(Level.WARNING, "Unable to delete performance profile file: " + file, e);
+            return false;
+        }
+    }
+
+    private Map<String, String> readOptionValues(File file) {
+        if (file == null) {
+            return null;
+        }
+
+        Map<String, String> values = new HashMap<>();
+        try {
+            if (!isRegularFileSafely(file)) {
+                return null;
+            }
+            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    int colon = line.indexOf(':');
+                    if (colon > 0) {
+                        values.put(line.substring(0, colon), line.substring(colon + 1));
+                    }
+                }
+            }
+
+            // A valid backup must contain a distance key plus several managed
+            // settings. One valid line may simply be a truncated/corrupt backup.
+            boolean hasRenderDistance = values.containsKey("renderDistance")
+                    || values.containsKey("viewDistance");
+            int recognizedOptionCount = 0;
+            for (String key : PERFORMANCE_PROFILE_KEYS) {
+                if (values.containsKey(key)) {
+                    recognizedOptionCount++;
+                }
+            }
+            if (!hasRenderDistance || recognizedOptionCount < 3) {
+                Logging.LOG.warning("Minecraft options file is incomplete or missing managed settings: " + file);
+                return null;
+            }
+            return values;
+        } catch (IOException | SecurityException e) {
+            Logging.LOG.log(Level.WARNING, "Unable to read Minecraft options file: " + file, e);
+            return null;
+        }
+    }
+
+    private void restorePerformanceOptions(GameOption gameOption, Map<String, String> baseline,
+                                           boolean restoreMaxFps) {
+        for (String key : PERFORMANCE_PROFILE_KEYS) {
+            // FPS-only mode never owns this option; preserve the player's limit
+            // unless we are undoing a previously applied RAM Saver cap.
+            if ("maxFps".equals(key)) {
+                continue;
+            }
+            if (baseline.containsKey(key)) {
+                gameOption.set(key, baseline.get(key));
+            } else {
+                gameOption.remove(key);
+            }
+        }
+        if (restoreMaxFps) {
+            if (baseline.containsKey("maxFps")) {
+                gameOption.set("maxFps", baseline.get("maxFps"));
+            } else {
+                gameOption.remove("maxFps");
+            }
+        }
+    }
+
+    private boolean performanceOptionsMatchExpected(File optionsFile, Map<String, String> baseline,
+                                                    GameVersionNumber gameVersion, boolean fpsBooster,
+                                                    boolean ramSaver, boolean verifyMaxFps) {
+        if (baseline == null) {
+            return false;
+        }
+
+        Map<String, String> expected = PerformanceProfileOptions.buildProfile(
+                gameVersion, fpsBooster, ramSaver);
+        Map<String, String> current = readOptionValues(optionsFile);
+        if (current == null) {
+            return false;
+        }
+
+        for (String key : PERFORMANCE_PROFILE_KEYS) {
+            if ("maxFps".equals(key)) {
+                if (expected.containsKey(key)) {
+                    if (!expected.get(key).equals(current.get(key))) {
+                        return false;
+                    }
+                } else if (verifyMaxFps) {
+                    // RAM Saver cannot set maxFps on pre-1.7.2 clients. In that
+                    // case verify restoration of the original value, not 60 FPS.
+                    if (baseline.containsKey(key)) {
+                        if (!baseline.get(key).equals(current.get(key))) {
+                            return false;
+                        }
+                    } else if (current.containsKey(key)) {
+                        return false;
+                    }
+                }
+                continue;
+            }
+
+            if (expected.containsKey(key)) {
+                if (!expected.get(key).equals(current.get(key))) {
+                    return false;
+                }
+            } else if (current.containsKey(key)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean performanceOptionsMatchBaseline(File optionsFile, Map<String, String> baseline,
+                                                    boolean verifyMaxFps) {
+        Map<String, String> current = readOptionValues(optionsFile);
+        if (current == null) {
+            return false;
+        }
+        for (String key : PERFORMANCE_PROFILE_KEYS) {
+            if ("maxFps".equals(key) && !verifyMaxFps) {
+                continue;
+            }
+            if (baseline.containsKey(key)) {
+                if (!baseline.get(key).equals(current.get(key))) {
+                    return false;
+                }
+            } else if (current.containsKey(key)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Applies conservative options supported by most Minecraft generations.
+     * The game ignores settings it does not recognize; version-specific keys
+     * are only added when that option exists in the corresponding generation.
+     */
+    private void applyPerformanceProfile(GameOption gameOption, GameVersionNumber gameVersion,
+                                         boolean fpsBooster, boolean ramSaver) {
+        Map<String, String> profile = PerformanceProfileOptions.buildProfile(
+                gameVersion, fpsBooster, ramSaver);
+
+        for (String key : PERFORMANCE_PROFILE_KEYS) {
+            if ("maxFps".equals(key)) {
+                // Do not overwrite or remove the user's FPS limit in FPS-only
+                // mode. RAM Saver owns this option only when it sets a cap.
+                continue;
+            }
+            String value = profile.get(key);
+            if (value != null) {
+                gameOption.set(key, value);
+            } else {
+                // Remove stale keys written by older launcher releases and keys
+                // which were renamed or are unsupported in this Minecraft version.
+                gameOption.remove(key);
+            }
+        }
+
+        if (profile.containsKey("maxFps")) {
+            gameOption.set("maxFps", profile.get("maxFps"));
+        }
     }
 
     private void fixOptions(GameOption gameOption) {

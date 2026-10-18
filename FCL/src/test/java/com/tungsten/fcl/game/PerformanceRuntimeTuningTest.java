@@ -76,29 +76,56 @@ public class PerformanceRuntimeTuningTest {
     }
 
     @Test
-    public void ramSaverEncouragesHeapReclamationWithoutOverridingHeapLimit() {
+    public void ramSaverUsesLowRetentionAndReducedGcWorkerCounts() {
         List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(8, false, true);
         assertTrue(arguments.contains("-XX:+UseG1GC"));
         assertTrue(arguments.contains("-XX:MaxGCPauseMillis=200"));
-        assertTrue(arguments.contains("-XX:MinHeapFreeRatio=10"));
-        assertTrue(arguments.contains("-XX:MaxHeapFreeRatio=25"));
+        assertTrue(arguments.contains("-XX:MinHeapFreeRatio=5"));
+        assertTrue(arguments.contains("-XX:MaxHeapFreeRatio=20"));
+        assertTrue(arguments.contains("-XX:SoftRefLRUPolicyMSPerMB=100"));
+        assertTrue(arguments.contains("-XX:ParallelGCThreads=2"));
+        assertTrue(arguments.contains("-XX:ConcGCThreads=1"));
         assertFalse(arguments.contains("-XX:+UseStringDeduplication"));
         assertFalse(arguments.stream().anyMatch(argument -> argument.startsWith("-Xmx")));
     }
 
     @Test
     public void modernJavaCanUseStringDeduplicationForRamSaver() {
-        assertTrue(PerformanceRuntimeTuning.buildJvmArguments(17, false, true)
-                .contains("-XX:+UseStringDeduplication"));
+        List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(17, false, true);
+        assertTrue(arguments.contains("-XX:+UseStringDeduplication"));
+        assertTrue(arguments.contains("-XX:InitiatingHeapOccupancyPercent=30"));
     }
 
     @Test
-    public void fpsProfileTakesPriorityWhenBothModesAreEnabled() {
+    public void ramOptimizationIsNotDroppedWhenFpsAndRamProfilesAreBothEnabled() {
         List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(21, true, true);
+        assertTrue(arguments.contains("-XX:MaxGCPauseMillis=50"));
+        assertTrue(arguments.contains("-XX:MinHeapFreeRatio=5"));
+        assertTrue(arguments.contains("-XX:MaxHeapFreeRatio=20"));
+        assertTrue(arguments.contains("-XX:SoftRefLRUPolicyMSPerMB=100"));
+        assertTrue(arguments.contains("-XX:ParallelGCThreads=2"));
+        assertTrue(arguments.contains("-XX:ConcGCThreads=1"));
+        assertTrue(arguments.contains("-XX:+UseStringDeduplication"));
+        assertTrue(arguments.contains("-XX:InitiatingHeapOccupancyPercent=30"));
+    }
+
+    @Test
+    public void ultraFpsAndRamSaverDoNotDefineConflictingOccupancyThresholds() {
+        List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(21, false, true, true);
+        assertEquals(1, arguments.stream()
+                .filter(argument -> argument.startsWith("-XX:InitiatingHeapOccupancyPercent="))
+                .count());
+        assertTrue(arguments.contains("-XX:InitiatingHeapOccupancyPercent=25"));
+        assertTrue(arguments.contains("-XX:+UseStringDeduplication"));
+    }
+
+    @Test
+    public void fpsProfileTakesPriorityWithoutRamSaver() {
+        List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(21, true, false);
         assertEquals("-XX:MaxGCPauseMillis=50", arguments.get(1));
         assertTrue(arguments.contains("-XX:+ExplicitGCInvokesConcurrent"));
-        assertFalse(arguments.contains("-XX:MinHeapFreeRatio=10"));
-        assertFalse(arguments.contains("-XX:MaxHeapFreeRatio=25"));
+        assertFalse(arguments.contains("-XX:MinHeapFreeRatio=5"));
+        assertFalse(arguments.contains("-XX:SoftRefLRUPolicyMSPerMB=100"));
         assertFalse(arguments.contains("-XX:+UseStringDeduplication"));
     }
 

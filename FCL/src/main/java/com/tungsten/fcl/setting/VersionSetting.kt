@@ -31,8 +31,10 @@ import com.mio.JavaManager
 import com.mio.data.Renderer
 import com.tungsten.fcl.FCLApp
 import com.tungsten.fclcore.util.Lang
+import com.tungsten.fclcore.util.Logging
 import com.tungsten.fclcore.util.platform.MemoryUtils
 import java.lang.reflect.Type
+import java.util.logging.Level
 
 /**
  * 版本设置数据模型。
@@ -231,12 +233,24 @@ class VersionSetting : Cloneable {
 
     fun checkController() {
         Controllers.addCallback {
-            Controllers.checkControllers()
-            val controller = Controllers.getControllers().stream()
-                .filter { it.id == controller }
-                .findFirst()
-                .orElse(Controllers.getControllers()[0])
-            this.controller = controller.id
+            try {
+                Controllers.checkControllers()
+                // Optional.orElse evaluates its fallback eagerly. Accessing index 0
+                // there could crash even when the saved controller was found, and
+                // an empty/corrupt controller list could also crash settings startup.
+                val availableControllers = Controllers.getControllers().filterNotNull()
+                val selectedController = availableControllers.firstOrNull { it.id == this.controller }
+                    ?: availableControllers.firstOrNull()
+
+                if (selectedController != null) {
+                    this.controller = selectedController.id
+                } else {
+                    Logging.LOG.warning("No valid controller layouts are available; keeping the saved controller ID.")
+                }
+            } catch (e: RuntimeException) {
+                // A broken optional controller layout must not crash launcher settings.
+                Logging.LOG.log(Level.WARNING, "Unable to validate the selected controller layout", e)
+            }
         }
     }
 

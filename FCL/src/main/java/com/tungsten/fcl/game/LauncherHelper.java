@@ -141,7 +141,16 @@ public final class LauncherHelper {
         LOG.info("Launching game version: " + selectedVersion);
 
         launchingStepsPane.show();
-        // 版本解析与 mod 全量扫描较重，挪到后台执行，避免阻塞主线程导致弹窗延迟显示
+
+        // Stop menu video/background decoding before dependency checks and JVM startup.
+        // This frees CPU/GPU and memory bandwidth while the game is being prepared.
+        MainActivity mainActivity = MainActivity.getInstance();
+        if (mainActivity != null && mainActivity.shouldPlayVideo()) {
+            mainActivity.setMediaPlayer(null);
+            mainActivity.binding.videoView.stopPlayback();
+        }
+
+        // Version resolution and full mod scanning are heavy; keep them off the UI thread.
         Task.runAsync(this::launch0).whenComplete(Schedulers.androidUIThread(), e -> {
             // 任务链尚未构建时（版本解析/mod 扫描准备段）失败不会触发链内 onStop，在此兜底
             if (e != null) {

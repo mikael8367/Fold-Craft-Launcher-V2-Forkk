@@ -139,6 +139,8 @@ public final class FCLGameLauncher extends DefaultLauncher {
         Map<String, String> baselineToVerify = null;
         boolean verifyMaxFpsBaseline = false;
         boolean performanceProfileApplied = false;
+        boolean restoreMaxFpsDuringProfile = false;
+        Map<String, String> profileBaselineForState = null;
         if (performanceProfileEnabled) {
             // Never change the profile-managed options unless a recoverable
             // baseline exists. The backup is taken before any profile is applied.
@@ -161,6 +163,8 @@ public final class FCLGameLauncher extends DefaultLauncher {
                             || (!hasPreviousPerformanceState && !backupCreatedThisRun);
                     restorePerformanceOptions(gameOption, baseline, restoreMaxFps);
                     applyPerformanceProfile(gameOption, gameVersion, fpsBooster, ramSaver);
+                    restoreMaxFpsDuringProfile = restoreMaxFps;
+                    profileBaselineForState = baseline;
                     performanceProfileApplied = true;
                 }
             }
@@ -177,7 +181,12 @@ public final class FCLGameLauncher extends DefaultLauncher {
         }
         gameOption.save();
         if (performanceProfileApplied) {
-            launcherPrefs.edit().putBoolean(performanceStateKey, ramSaver).apply();
+            if (maxFpsMatchesExpected(optionsFile, profileBaselineForState, ramSaver,
+                    restoreMaxFpsDuringProfile)) {
+                launcherPrefs.edit().putBoolean(performanceStateKey, ramSaver).apply();
+            } else {
+                Logging.LOG.warning("Performance profile write could not be verified; keeping the previous profile state.");
+            }
         }
         if (baselineToVerify != null) {
             if (performanceOptionsMatchBaseline(optionsFile, baselineToVerify, verifyMaxFpsBaseline)) {
@@ -253,6 +262,24 @@ public final class FCLGameLauncher extends DefaultLauncher {
                 gameOption.remove("maxFps");
             }
         }
+    }
+
+    private boolean maxFpsMatchesExpected(File optionsFile, Map<String, String> baseline,
+                                          boolean ramSaver, boolean restoreBaseline) {
+        Map<String, String> current = readOptionValues(optionsFile);
+        if (current == null || baseline == null) {
+            return false;
+        }
+        if (ramSaver) {
+            return "60".equals(current.get("maxFps"));
+        }
+        if (!restoreBaseline) {
+            return true;
+        }
+        if (baseline.containsKey("maxFps")) {
+            return baseline.get("maxFps").equals(current.get("maxFps"));
+        }
+        return !current.containsKey("maxFps");
     }
 
     private boolean performanceOptionsMatchBaseline(File optionsFile, Map<String, String> baseline,

@@ -416,6 +416,12 @@ public class LauncherSettingPage extends FCLPage implements LauncherSettingAdapt
             case SWITCH_AUTO_EXIT:
                 sharedPreferences.edit().putBoolean("autoExitLauncher", checked).apply();
                 break;
+            case SWITCH_FPS_BOOSTER:
+                sharedPreferences.edit().putBoolean("fpsBoosterEnabled", checked).apply();
+                break;
+            case SWITCH_RAM_SAVER:
+                sharedPreferences.edit().putBoolean("ramSaverEnabled", checked).apply();
+                break;
             case SWITCH_IGNORE_NOTCH:
                 ThemeEngine.getInstance().applyAndSave(getContext(), getActivity().getWindow(), checked);
                 getActivity().getWindow().setFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN);

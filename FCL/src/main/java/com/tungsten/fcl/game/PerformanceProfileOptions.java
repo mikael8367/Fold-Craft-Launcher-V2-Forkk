@@ -137,7 +137,8 @@ public final class PerformanceProfileOptions {
             settings.put("entityDistanceScaling", ramSaver ? "0.5" : "0.75");
         }
         if (hasSimulationDistance) {
-            settings.put("simulationDistance", ramSaver ? "4" : "6");
+            // Vanilla's supported simulation-distance range starts at 5 chunks.
+            settings.put("simulationDistance", ramSaver ? "5" : "6");
         }
 
         // maxFps replaced the old FPS mode in snapshot 13w38a. Older clients

@@ -5,20 +5,22 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Builds conservative JVM-only performance options for Android Minecraft sessions.
+ * Loader-independent JVM performance profiles for Android Minecraft.
  *
- * Performance profiles never change Minecraft's render-buffer dimensions or options.txt.
- * They can reduce GC-related frame-time spikes, but cannot guarantee a frame-rate increase
- * when the bottleneck is the GPU, CPU, renderer, native code, or a particular mod.
+ * These arguments are appended at the common launcher layer, so they apply to
+ * vanilla and every mod loader using the same JVM startup path (Forge, NeoForge,
+ * Fabric, Quilt, and compatible loaders). They never rewrite options.txt or
+ * loader-owned configuration files.
+ *
+ * GC pause targets are soft goals, not FPS guarantees. A GPU-, renderer-, or
+ * mod-limited game may not gain frames from JVM tuning alone.
  */
 public final class PerformanceRuntimeTuning {
 
     private PerformanceRuntimeTuning() {
     }
 
-    /**
-     * Compatibility overload used by the standard FPS Booster and RAM Saver.
-     */
+    /** Compatibility overload used by the standard FPS Booster and RAM Saver. */
     public static List<String> buildJvmArguments(int javaMajorVersion,
                                                  boolean fpsBooster,
                                                  boolean ramSaver) {
@@ -26,10 +28,9 @@ public final class PerformanceRuntimeTuning {
     }
 
     /**
-     * Builds JVM arguments for normal FPS, Ultra FPS, or RAM Saver.
-     *
-     * Ultra mode is deliberately stricter only on modern Java runtimes where the
-     * G1 flags used below are supported. G1 pause targets are soft goals, not guarantees.
+     * Build runtime arguments without depending on a specific mod loader.
+     * Ultra mode uses more aggressive G1 pause goals only; it does not force
+     * unsupported JVM flags or override the user's selected heap size.
      */
     public static List<String> buildJvmArguments(int javaMajorVersion,
                                                  boolean fpsBooster,
@@ -44,25 +45,30 @@ public final class PerformanceRuntimeTuning {
         arguments.add("-XX:+UseG1GC");
 
         if (fpsProfile) {
-            // A tighter pause target may reduce GC-related hitching, at some throughput cost.
-            int pauseTarget = fpsBoosterUltra
-                    ? (javaMajorVersion >= 17 ? 40 : 45)
-                    : 50;
+            int pauseTarget;
+            if (fpsBoosterUltra) {
+                // Java 17+ has more modern G1 behavior; Java 8 keeps a less
+                // aggressive target to avoid excessive GC work on older runtimes.
+                pauseTarget = javaMajorVersion >= 17 ? 30 : 40;
+            } else {
+                pauseTarget = 50;
+            }
+
             arguments.add("-XX:MaxGCPauseMillis=" + pauseTarget);
             arguments.add("-XX:+ParallelRefProcEnabled");
             arguments.add("-XX:+ExplicitGCInvokesConcurrent");
 
             if (fpsBoosterUltra && javaMajorVersion >= 17) {
-                // For modern runtimes, begin the first G1 marking cycles earlier.
-                // G1 can later adapt its threshold to observed allocation behavior.
-                arguments.add("-XX:InitiatingHeapOccupancyPercent=30");
+                // Start concurrent marking earlier to reduce the risk of G1
+                // falling behind during allocation-heavy modded gameplay.
+                arguments.add("-XX:InitiatingHeapOccupancyPercent=25");
             }
         } else {
             arguments.add("-XX:MaxGCPauseMillis=200");
         }
 
-        // Do not spend additional CPU on heap shrinking/deduplication while FPS mode
-        // is active; RAM Saver applies these trade-offs only when FPS mode is off.
+        // Heap shrinking and string deduplication can use extra CPU. Keep them
+        // exclusive to RAM Saver so the FPS profiles prioritize frame pacing.
         if (ramSaver && !fpsProfile) {
             arguments.add("-XX:MinHeapFreeRatio=10");
             arguments.add("-XX:MaxHeapFreeRatio=25");
@@ -74,17 +80,12 @@ public final class PerformanceRuntimeTuning {
         return Collections.unmodifiableList(arguments);
     }
 
-    /**
-     * Compatibility helper: performance profiles preserve the render resolution chosen
-     * by the user and never modify options.txt.
-     */
+    /** Performance profiles intentionally preserve the render resolution chosen by the user. */
     public static float getRenderScale(boolean fpsBooster, boolean forceResolution) {
         return 1.0f;
     }
 
-    /**
-     * Compatibility helper: Ultra FPS also preserves the user's render resolution.
-     */
+    /** Ultra FPS also preserves the user's render resolution. */
     public static float getRenderScale(boolean fpsBooster, boolean ultraFps, boolean forceResolution) {
         return 1.0f;
     }

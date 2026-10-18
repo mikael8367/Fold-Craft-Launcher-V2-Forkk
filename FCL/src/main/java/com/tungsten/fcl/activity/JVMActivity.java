@@ -213,10 +213,11 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
         if (menuType != MenuType.GAME) {
             return new int[]{FCLBridge.DEFAULT_WIDTH, FCLBridge.DEFAULT_HEIGHT};
         }
+        updatePerformanceRenderScale();
         if (FCLBridge.FORCE_RESOLUTION) {
             return new int[]{FCLBridge.FORCE_RESOLUTION_WIDTH, FCLBridge.FORCE_RESOLUTION_HEIGHT};
         }
-        double factor = fclBridge.getScaleFactor();
+        double factor = fclBridge.getScaleFactor() * FCLBridge.PERFORMANCE_RENDER_SCALE;
         int width = (int) ((viewWidth + ((GameMenu) menu).getMenuSetting().getCursorOffset()) * factor);
         int height = (int) (viewHeight * factor);
         return new int[]{width, height};
@@ -261,11 +262,30 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
      * This is a system hint, not an overclock; the device may ignore it or still throttle.
      */
     private void applyFpsBoosterPolicy(boolean active) {
-        fpsBoosterActive = active && isFpsBoosterEnabled();
+        fpsBoosterActive = active && menuType == MenuType.GAME && isFpsBoosterEnabled();
+        updatePerformanceRenderScale();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             getWindow().setSustainedPerformanceMode(fpsBoosterActive);
         }
         applyMaxRefreshRatePolicy();
+    }
+
+    /**
+     * Lower the game render buffer only for the FPS profile. Explicit fixed
+     * resolution remains authoritative, and pointer conversion uses the same
+     * scale so touch/mouse positions stay aligned with the rendered image.
+     */
+    private void updatePerformanceRenderScale() {
+        FCLBridge.PERFORMANCE_RENDER_SCALE = com.tungsten.fcl.game.PerformanceRuntimeTuning
+                .getRenderScale(fpsBoosterActive, FCLBridge.FORCE_RESOLUTION);
+        if (fpsBoosterActive) {
+            Logging.LOG.log(Level.INFO, "FPS Booster render scale: "
+                    + FCLBridge.PERFORMANCE_RENDER_SCALE
+                    + " (about "
+                    + Math.round(FCLBridge.PERFORMANCE_RENDER_SCALE
+                    * FCLBridge.PERFORMANCE_RENDER_SCALE * 100)
+                    + "% of full-resolution pixels)");
+        }
     }
 
     /** 当前关联的 Display；API 30 前走已废弃的 getDefaultDisplay */

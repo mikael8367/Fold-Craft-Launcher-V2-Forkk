@@ -21,7 +21,18 @@ public final class PerformanceRuntimeTuning {
      * An explicit user-selected fixed resolution always takes precedence.
      */
     public static float getRenderScale(boolean fpsBooster, boolean forceResolution) {
-        return fpsBooster && !forceResolution ? 0.40f : 1.0f;
+        return getRenderScale(fpsBooster, false, forceResolution);
+    }
+
+    /**
+     * Ultra mode is opt-in because 30% width/height means only 9% of the
+     * original pixel count. An explicit fixed resolution always wins.
+     */
+    public static float getRenderScale(boolean fpsBooster, boolean ultraFps, boolean forceResolution) {
+        if (!fpsBooster || forceResolution) {
+            return 1.0f;
+        }
+        return ultraFps ? 0.30f : 0.40f;
     }
 
     public static List<String> buildJvmArguments(int javaMajorVersion,

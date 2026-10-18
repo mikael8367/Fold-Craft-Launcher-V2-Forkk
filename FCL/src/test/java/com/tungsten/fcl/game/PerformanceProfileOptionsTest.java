@@ -27,7 +27,7 @@ public class PerformanceProfileOptionsTest {
     public void legacyClientUsesLegacyOptionNamesAndDoesNotInventFpsCap() {
         Map<String, String> settings = profile("1.6.4", true, false);
 
-        assertEquals("6", settings.get("viewDistance"));
+        assertEquals("3", settings.get("viewDistance"));
         assertFalse(settings.containsKey("renderDistance"));
         assertEquals("false", settings.get("fancyGraphics"));
         assertEquals("false", settings.get("clouds"));
@@ -110,7 +110,7 @@ public class PerformanceProfileOptionsTest {
         Map<String, String> before = profile("13w37a", false, true);
         Map<String, String> after = profile("13w38a", false, true);
 
-        assertEquals("4", before.get("viewDistance"));
+        assertEquals("3", before.get("viewDistance"));
         assertFalse(before.containsKey("maxFps"));
         assertEquals("4", after.get("renderDistance"));
         assertEquals("60", after.get("maxFps"));

@@ -16,27 +16,18 @@ public class PerformanceRuntimeTuningTest {
     }
 
     @Test
-    public void fpsBoosterUsesFortyPercentScaleForGpuHeadroom() {
-        float scale = PerformanceRuntimeTuning.getRenderScale(true, false);
-        assertEquals(0.40f, scale, 0.0001f);
-        assertEquals(16.0f, scale * scale * 100.0f, 0.0001f);
+    public void fpsBoosterNeverChangesRenderResolution() {
+        assertEquals(1.0f, PerformanceRuntimeTuning.getRenderScale(true, false), 0.0001f);
     }
 
     @Test
-    public void ultraFpsUsesNinePercentOfFullResolutionPixels() {
-        float scale = PerformanceRuntimeTuning.getRenderScale(true, true, false);
-        assertEquals(0.30f, scale, 0.0001f);
-        assertEquals(9.0f, scale * scale * 100.0f, 0.0001f);
+    public void ultraFpsNeverChangesRenderResolution() {
+        assertEquals(1.0f, PerformanceRuntimeTuning.getRenderScale(true, true, false), 0.0001f);
     }
 
     @Test
-    public void ultraFpsDoesNotOverrideExplicitFixedResolution() {
+    public void fixedAndNormalResolutionArePreserved() {
         assertEquals(1.0f, PerformanceRuntimeTuning.getRenderScale(true, true, true), 0.0001f);
-    }
-
-    @Test
-    public void explicitFixedResolutionIsNeverOverridden() {
-        assertEquals(1.0f, PerformanceRuntimeTuning.getRenderScale(true, true), 0.0001f);
         assertEquals(1.0f, PerformanceRuntimeTuning.getRenderScale(false, false), 0.0001f);
     }
 
@@ -46,7 +37,7 @@ public class PerformanceRuntimeTuningTest {
     }
 
     @Test
-    public void fpsProfileAddsG1AndFramePacingArgumentsOnly() {
+    public void fpsProfileAddsGcArgumentsWithoutChangingHeapOrSystemProperties() {
         List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(8, true, false);
         assertTrue(arguments.contains("-XX:+UseG1GC"));
         assertTrue(arguments.contains("-XX:MaxGCPauseMillis=50"));

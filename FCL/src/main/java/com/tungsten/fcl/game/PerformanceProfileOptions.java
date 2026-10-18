@@ -70,7 +70,9 @@ public final class PerformanceProfileOptions {
         boolean hasGraphicsPreset = version.isAtLeast("1.21.11", "25w41a");
 
         if (!hasModernDistanceKey) {
-            settings.put("viewDistance", String.valueOf(renderDistance));
+            // Legacy viewDistance is an enum (0=Far ... 3=Tiny), not chunks.
+            // Writing 4/6 here is outside the vanilla 0-3 range.
+            settings.put("viewDistance", "3");
         } else {
             settings.put("renderDistance", String.valueOf(renderDistance));
         }

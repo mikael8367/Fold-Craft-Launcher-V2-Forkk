@@ -97,6 +97,18 @@ public class PerformanceRuntimeTuningTest {
     }
 
     @Test
+    public void modernRamOnlyProfileShrinksHeapWithoutStepwiseDelay() {
+        List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(17, false, true);
+        assertTrue(arguments.contains("-XX:-ShrinkHeapInSteps"));
+    }
+
+    @Test
+    public void combinedFpsAndRamProfileKeepsIncrementalHeapShrinking() {
+        List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(17, true, true);
+        assertFalse(arguments.contains("-XX:-ShrinkHeapInSteps"));
+    }
+
+    @Test
     public void ramOptimizationIsNotDroppedWhenFpsAndRamProfilesAreBothEnabled() {
         List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(21, true, true);
         assertTrue(arguments.contains("-XX:MaxGCPauseMillis=50"));

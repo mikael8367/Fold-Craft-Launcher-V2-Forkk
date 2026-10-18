@@ -57,13 +57,15 @@ public final class PerformanceRuntimeTuning {
         }
 
         if (ramSaver) {
-            // Encourage the JVM to shrink unused heap more readily after collections.
-            // This can trade some allocation/GC throughput for a lower retained heap.
-            arguments.add("-XX:MinHeapFreeRatio=10");
-            arguments.add("-XX:MaxHeapFreeRatio=25");
+            // Aggressive heap shrinking can increase collection frequency. When FPS
+            // mode is also enabled, prioritize frame pacing and skip these two flags.
+            if (!fpsBooster) {
+                arguments.add("-XX:MinHeapFreeRatio=10");
+                arguments.add("-XX:MaxHeapFreeRatio=25");
+            }
 
-            // String deduplication is enabled only on modern Java runtimes, where
-            // it is standard with G1 and may reduce duplicate string storage in modpacks.
+            // String deduplication is available on modern Java runtimes with G1 and
+            // may reduce duplicate string storage in large modpacks.
             if (javaMajorVersion >= 17) {
                 arguments.add("-XX:+UseStringDeduplication");
             }

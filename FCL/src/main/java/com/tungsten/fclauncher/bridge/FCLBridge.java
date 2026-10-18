@@ -39,6 +39,8 @@ public class FCLBridge {
     public static int FORCE_RESOLUTION_WIDTH = 1920;
     public static int FORCE_RESOLUTION_HEIGHT = 1080;
     public static int FORCE_RESOLUTION_START_SIZE = -1;
+    /** Render-scale multiplier used by the FPS profile; 1.0 keeps native resolution. */
+    public static volatile float PERFORMANCE_RENDER_SCALE = 1.0f;
 
     public static final int DEFAULT_WIDTH = 1280;
     public static final int DEFAULT_HEIGHT = 720;
@@ -198,8 +200,9 @@ public class FCLBridge {
             x = (x - FORCE_RESOLUTION_START_SIZE) / FORCE_RESOLUTION_SCALE;
             y = y / FORCE_RESOLUTION_SCALE;
         } else {
-            x *= (float) scaleFactor;
-            y *= (float) scaleFactor;
+            float effectiveScale = (float) scaleFactor * PERFORMANCE_RENDER_SCALE;
+            x *= effectiveScale;
+            y *= effectiveScale;
         }
         CallbackBridge.sendCursorPos(x, y);
     }

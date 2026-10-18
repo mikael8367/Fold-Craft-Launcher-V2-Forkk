@@ -70,7 +70,7 @@ public class PerformanceProfileOptionsTest {
 
         assertEquals("0", settings.get("graphicsMode"));
         assertFalse(settings.containsKey("graphicsPreset"));
-        assertEquals("4", settings.get("simulationDistance"));
+        assertEquals("5", settings.get("simulationDistance"));
         assertEquals("60", settings.get("maxFps"));
     }
 
@@ -83,7 +83,7 @@ public class PerformanceProfileOptionsTest {
         assertFalse(settings.containsKey("fancyGraphics"));
         assertEquals("false", settings.get("ao"));
         assertEquals("false", settings.get("renderClouds"));
-        assertEquals("4", settings.get("simulationDistance"));
+        assertEquals("5", settings.get("simulationDistance"));
         assertEquals("60", settings.get("maxFps"));
     }
 
@@ -158,7 +158,7 @@ public class PerformanceProfileOptionsTest {
         assertFalse(beforeEntityDistance.containsKey("entityDistanceScaling"));
         assertEquals("0.5", afterEntityDistance.get("entityDistanceScaling"));
         assertFalse(beforeSimulationDistance.containsKey("simulationDistance"));
-        assertEquals("4", afterSimulationDistance.get("simulationDistance"));
+        assertEquals("5", afterSimulationDistance.get("simulationDistance"));
     }
 
     @Test

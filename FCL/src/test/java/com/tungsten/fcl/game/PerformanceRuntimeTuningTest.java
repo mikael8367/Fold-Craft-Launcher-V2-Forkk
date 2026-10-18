@@ -68,7 +68,8 @@ public class PerformanceRuntimeTuningTest {
 
         assertEquals("-XX:MaxGCPauseMillis=50", arguments.get(1));
         assertTrue(arguments.contains("-XX:+ExplicitGCInvokesConcurrent"));
-        assertTrue(arguments.contains("-XX:MinHeapFreeRatio=10"));
+        assertFalse(arguments.contains("-XX:MinHeapFreeRatio=10"));
+        assertFalse(arguments.contains("-XX:MaxHeapFreeRatio=25"));
         assertTrue(arguments.contains("-XX:+UseStringDeduplication"));
     }
 

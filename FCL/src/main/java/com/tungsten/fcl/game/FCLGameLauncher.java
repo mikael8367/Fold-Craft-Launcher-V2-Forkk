@@ -78,34 +78,10 @@ public final class FCLGameLauncher extends DefaultLauncher {
             Logging.LOG.log(Level.WARNING, "Unable to disable forge animation", e);
         }
 
-        // Only disable the FML early-loading window on versions where its startup
-        // renderer conflicts with Android's gralloc synchronization.
-        File fmlToml = new File(configFolder, "fml.toml");
-        GameVersionNumber gameVersion = GameVersionNumber.asGameVersion(
-                repository.getGameVersion(version).orElse("0.0"));
-        boolean disableEarlyWindow = gameVersion.compareTo("26.3") >= 0;
-        if (fmlToml.isFile()) {
-            try (BufferedReader reader = new BufferedReader(new FileReader(fmlToml))) {
-                StringBuilder text = new StringBuilder(disableEarlyWindow ? "earlyWindowControl = false\n" : "");
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (!line.strip().startsWith("earlyWindowControl")) {
-                        text.append(line).append('\n');
-                    }
-                }
-                try (FileWriter writer = new FileWriter(fmlToml)) {
-                    writer.write(text.toString());
-                }
-            } catch (IOException e) {
-                Logging.LOG.log(Level.WARNING, "Unable to write fml.toml", e);
-            }
-        } else if (disableEarlyWindow) {
-            try {
-                FileUtils.writeText(fmlToml, "earlyWindowControl = false\n");
-            } catch (IOException e) {
-                Logging.LOG.log(Level.WARNING, "Unable to write fml.toml", e);
-            }
-        }
+        // Do not rewrite loader-owned TOML files automatically. Forge/NeoForge
+        // schemas vary across game and loader versions; injecting a top-level key
+        // or deleting an existing key can break otherwise valid modpacks.
+        // Keep fml.toml entirely under the modpack/loader's control.
     }
 
     /**

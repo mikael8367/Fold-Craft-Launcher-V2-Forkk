@@ -65,6 +65,7 @@ import com.tungsten.fcl.game.sdl.SdlSettings;
 import com.tungsten.fcl.setting.Controller;
 import com.tungsten.fcl.setting.Controllers;
 import com.tungsten.fcl.setting.GameOption;
+import com.tungsten.fcl.game.PerformanceRuntimeTuning;
 import com.tungsten.fcl.setting.MenuSetting;
 import com.tungsten.fclauncher.bridge.FCLBridge;
 import com.tungsten.fclauncher.bridge.FCLBridgeCallback;
@@ -1504,8 +1505,13 @@ public class GameMenu implements MenuCallback, FCLBridgeCallback {
         int screenHeight = AndroidUtilKt.getScreenHeight();
         if (fclBridge != null) {
             fclBridge.setScaleFactor(factor);
-            int width = (int) ((screenWidth + menuSetting.getCursorOffset()) * factor);
-            int height = (int) (screenHeight * factor);
+            boolean fpsBoosterEnabled = activity.getSharedPreferences("launcher", MODE_PRIVATE)
+                    .getBoolean("fpsBoosterEnabled", false);
+            FCLBridge.PERFORMANCE_RENDER_SCALE = PerformanceRuntimeTuning.getRenderScale(
+                    fpsBoosterEnabled, FCLBridge.FORCE_RESOLUTION);
+            double effectiveFactor = factor * FCLBridge.PERFORMANCE_RENDER_SCALE;
+            int width = (int) ((screenWidth + menuSetting.getCursorOffset()) * effectiveFactor);
+            int height = (int) (screenHeight * effectiveFactor);
             if (FCLBridge.FORCE_RESOLUTION) {
                 width = FCLBridge.FORCE_RESOLUTION_WIDTH;
                 height = FCLBridge.FORCE_RESOLUTION_HEIGHT;

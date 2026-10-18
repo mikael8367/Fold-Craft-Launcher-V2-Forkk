@@ -16,13 +16,13 @@ public class PerformanceRuntimeTuningTest {
     }
 
     @Test
-    public void fpsBoosterNeverChangesRenderResolution() {
-        assertEquals(1.0f, PerformanceRuntimeTuning.getRenderScale(true, false), 0.0001f);
+    public void standardFpsProfileUsesSlightlyReducedRenderScale() {
+        assertEquals(0.85f, PerformanceRuntimeTuning.getRenderScale(true, false), 0.0001f);
     }
 
     @Test
-    public void ultraFpsNeverChangesRenderResolution() {
-        assertEquals(1.0f, PerformanceRuntimeTuning.getRenderScale(true, true, false), 0.0001f);
+    public void ultraFpsUsesLowerRenderScale() {
+        assertEquals(0.70f, PerformanceRuntimeTuning.getRenderScale(true, true, false), 0.0001f);
     }
 
     @Test

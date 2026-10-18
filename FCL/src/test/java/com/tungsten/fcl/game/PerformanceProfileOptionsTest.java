@@ -179,6 +179,25 @@ public class PerformanceProfileOptionsTest {
     }
 
     @Test
+    public void sharedGameDirectoriesShareProfileStateKey() {
+        String sharedPath = "/data/user/0/com.example.fcl/.minecraft/options.txt";
+        assertEquals(
+                PerformanceProfileOptions.statePreferenceKeyFor(sharedPath),
+                PerformanceProfileOptions.statePreferenceKeyFor(
+                        "/data/user/0/com.example.fcl/.minecraft/../.minecraft/options.txt")
+        );
+    }
+
+    @Test
+    public void isolatedGameDirectoriesGetDifferentProfileStateKeys() {
+        String first = PerformanceProfileOptions.statePreferenceKeyFor(
+                "/data/user/0/com.example.fcl/.minecraft/versions/1.12.2/options.txt");
+        String second = PerformanceProfileOptions.statePreferenceKeyFor(
+                "/data/user/0/com.example.fcl/.minecraft/versions/1.21.11/options.txt");
+        org.junit.Assert.assertNotEquals(first, second);
+    }
+
+    @Test
     public void snapshotsUsingNewReleaseNumberingUseModernOptions() {
         Map<String, String> settings = profile("26.3", true, true);
 

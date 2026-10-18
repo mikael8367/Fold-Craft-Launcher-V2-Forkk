@@ -93,6 +93,11 @@ public class GameOption {
         parameterMap.put(key, value);
     }
 
+    /** Remove an option so Minecraft can fall back to its default value. */
+    public void remove(String key) {
+        parameterMap.remove(key);
+    }
+
     /** Set an array of String, instead of a simple value. Not supported on all options */
     public void set(String key, List<String> values) {
         parameterMap.put(key, values.toString());

@@ -79,7 +79,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
         boolean fpsBooster = launcherPrefs.getBoolean("fpsBoosterEnabled", false);
         boolean ramSaver = launcherPrefs.getBoolean("ramSaverEnabled", false);
         boolean performanceProfileEnabled = fpsBooster || ramSaver;
-        String performanceStateKey = "performanceRamSaverApplied:" + version.getId();
+        String performanceStateKey = PerformanceProfileOptions.statePreferenceKeyFor(optionsFile.getAbsolutePath());
         boolean hasPreviousPerformanceState = launcherPrefs.contains(performanceStateKey);
         boolean previousRamSaver = launcherPrefs.getBoolean(performanceStateKey, false);
 

@@ -117,6 +117,68 @@ public class PerformanceProfileOptionsTest {
     }
 
     @Test
+    public void snapshotBeforeCloudOptionRenameUsesLegacyCloudKey() {
+        Map<String, String> settings = profile("14w24a", true, false);
+
+        assertEquals("false", settings.get("clouds"));
+        assertFalse(settings.containsKey("renderClouds"));
+        assertEquals("false", settings.get("ao"));
+    }
+
+    @Test
+    public void cloudOptionRenameIsAppliedAtSnapshotBoundary() {
+        Map<String, String> before = profile("14w24a", false, true);
+        Map<String, String> after = profile("14w25a", false, true);
+
+        assertEquals("false", before.get("clouds"));
+        assertFalse(before.containsKey("renderClouds"));
+        assertEquals("false", after.get("renderClouds"));
+        assertFalse(after.containsKey("clouds"));
+        assertEquals("0", after.get("ao"));
+    }
+
+    @Test
+    public void graphicsModeChangesAtThePreReleaseBoundary() {
+        Map<String, String> before = profile("20w22a", true, false);
+        Map<String, String> after = profile("1.16-pre1", true, false);
+
+        assertEquals("false", before.get("fancyGraphics"));
+        assertFalse(before.containsKey("graphicsMode"));
+        assertEquals("0", after.get("graphicsMode"));
+        assertFalse(after.containsKey("fancyGraphics"));
+    }
+
+    @Test
+    public void entityAndSimulationDistanceOptionsRespectSnapshotBoundaries() {
+        Map<String, String> beforeEntityDistance = profile("20w16a", false, true);
+        Map<String, String> afterEntityDistance = profile("20w17a", false, true);
+        Map<String, String> beforeSimulationDistance = profile("21w37a", false, true);
+        Map<String, String> afterSimulationDistance = profile("21w38a", false, true);
+
+        assertFalse(beforeEntityDistance.containsKey("entityDistanceScaling"));
+        assertEquals("0.5", afterEntityDistance.get("entityDistanceScaling"));
+        assertFalse(beforeSimulationDistance.containsKey("simulationDistance"));
+        assertEquals("4", afterSimulationDistance.get("simulationDistance"));
+    }
+
+    @Test
+    public void nullVersionAndDisabledProfileDoNotProduceOverrides() {
+        assertTrue(PerformanceProfileOptions.buildProfile(null, true, true).isEmpty());
+        assertTrue(profile("1.21.11", false, false).isEmpty());
+    }
+
+    @Test
+    public void generatedProfileIsImmutable() {
+        Map<String, String> settings = profile("1.21.11", true, true);
+        try {
+            settings.put("renderDistance", "32");
+            throw new AssertionError("Expected profile map to be immutable");
+        } catch (UnsupportedOperationException expected) {
+            // Profile definitions are immutable shared data.
+        }
+    }
+
+    @Test
     public void snapshotsUsingNewReleaseNumberingUseModernOptions() {
         Map<String, String> settings = profile("26.3", true, true);
 

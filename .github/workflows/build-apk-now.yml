@@ -2,9 +2,6 @@ name: Build APK now
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/build-apk-now.yml'
 
 jobs:
   build:

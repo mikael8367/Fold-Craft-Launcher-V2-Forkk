@@ -1221,7 +1221,12 @@ public class GameMenu implements MenuCallback, FCLBridgeCallback {
                 break;
             case PERFORMANCE_MODE:
                 menuSetting.setPerformanceMode(checked);
-                activity.getWindow().setSustainedPerformanceMode(checked);
+                if (activity instanceof JVMActivity jvmActivity) {
+                    // Keep the launcher FPS profile and this in-game switch in sync.
+                    jvmActivity.refreshPerformancePolicy();
+                } else {
+                    activity.getWindow().setSustainedPerformanceMode(checked);
+                }
                 break;
             case REQUEST_MAX_REFRESH_RATE:
                 menuSetting.setRequestMaxRefreshRate(checked);

@@ -48,6 +48,24 @@ public class PerformanceRuntimeTuningTest {
     }
 
     @Test
+    public void ultraFpsUsesModernJavaGcTuning() {
+        List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(25, false, true, false);
+        assertTrue(arguments.contains("-XX:+UseG1GC"));
+        assertTrue(arguments.contains("-XX:MaxGCPauseMillis=40"));
+        assertTrue(arguments.contains("-XX:+ParallelRefProcEnabled"));
+        assertTrue(arguments.contains("-XX:+ExplicitGCInvokesConcurrent"));
+        assertTrue(arguments.contains("-XX:InitiatingHeapOccupancyPercent=30"));
+        assertFalse(arguments.stream().anyMatch(argument -> argument.startsWith("-Xmx")));
+    }
+
+    @Test
+    public void ultraFpsKeepsLegacyRuntimeFlagsCompatible() {
+        List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(8, false, true, false);
+        assertTrue(arguments.contains("-XX:MaxGCPauseMillis=45"));
+        assertFalse(arguments.contains("-XX:InitiatingHeapOccupancyPercent=30"));
+    }
+
+    @Test
     public void ramSaverEncouragesHeapReclamationWithoutOverridingHeapLimit() {
         List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(8, false, true);
         assertTrue(arguments.contains("-XX:+UseG1GC"));
@@ -89,5 +107,4 @@ public class PerformanceRuntimeTuningTest {
     public void disabledProfilesAlsoKeepNativeRenderScale() {
         assertEquals(1.0f, PerformanceRuntimeTuning.getRenderScale(false, false, false), 0.0001f);
     }
-
 }

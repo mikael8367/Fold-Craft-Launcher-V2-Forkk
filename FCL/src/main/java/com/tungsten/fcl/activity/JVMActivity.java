@@ -61,6 +61,7 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
 
     /** FPS policy is active only while the game activity is in the foreground. */
     private boolean fpsBoosterActive = false;
+    private boolean activityInForeground = false;
 
     /** 系统中途降档（智能刷新率/省电策略）后重新发起请求；1s 冷却防御部分 ROM 频繁回调 */
     private final DisplayManager.DisplayListener displayListener = new DisplayManager.DisplayListener() {
@@ -125,7 +126,7 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
 
         addContentView(menu.getLayout(), new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        applyFpsBoosterPolicy(true);
+        refreshPerformancePolicy();
         DisplayManager displayManager = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
         if (displayManager != null) {
             displayManager.registerDisplayListener(displayListener, null);
@@ -246,11 +247,11 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
     }
 
     private boolean isMaxRefreshRateEnabled() {
-        // FPS Booster may request the display's highest same-resolution refresh mode.
-        // Keep the in-game preference working independently of the launcher profile.
-        return fpsBoosterActive
+        // Do not hold a high-refresh request while the game activity is backgrounded.
+        return activityInForeground
+                && (fpsBoosterActive
                 || (menu instanceof GameMenu
-                && ((GameMenu) menu).getMenuSetting().isRequestMaxRefreshRate());
+                && ((GameMenu) menu).getMenuSetting().isRequestMaxRefreshRate()));
     }
 
     private boolean isFpsBoosterEnabled() {
@@ -261,14 +262,18 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
     }
 
     /**
-     * Ask Android for sustained performance only while the game activity is active.
-     * This is a system hint, not an overclock; the device may ignore it or still throttle.
+     * Reconcile launcher FPS settings with the in-game sustained-performance option.
+     * This is an Android system hint, not an overclock; device support varies.
      */
-    private void applyFpsBoosterPolicy(boolean active) {
-        fpsBoosterActive = active && menuType == MenuType.GAME && isFpsBoosterEnabled();
+    public void refreshPerformancePolicy() {
+        fpsBoosterActive = activityInForeground && menuType == MenuType.GAME && isFpsBoosterEnabled();
         updatePerformanceRenderScale();
+
+        boolean inGamePerformanceMode = menu instanceof GameMenu
+                && ((GameMenu) menu).getMenuSetting().isPerformanceMode();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            getWindow().setSustainedPerformanceMode(fpsBoosterActive);
+            getWindow().setSustainedPerformanceMode(
+                    activityInForeground && (fpsBoosterActive || inGamePerformanceMode));
         }
         applyMaxRefreshRatePolicy();
     }
@@ -423,10 +428,11 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
 
     @Override
     protected void onPause() {
+        activityInForeground = false;
+        refreshPerformancePolicy();
         if (menu != null) {
             menu.onPause();
         }
-        applyFpsBoosterPolicy(false);
         CallbackBridge.nativeSetWindowAttrib(LwjglGlfwKeycode.GLFW_FOCUSED, 0);
         CallbackBridge.nativeSetWindowAttrib(LwjglGlfwKeycode.GLFW_HOVERED, 0);
         super.onPause();
@@ -437,7 +443,8 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
         if (menu != null) {
             menu.onResume();
         }
-        applyFpsBoosterPolicy(true);
+        activityInForeground = true;
+        refreshPerformancePolicy();
         CallbackBridge.nativeSetWindowAttrib(LwjglGlfwKeycode.GLFW_FOCUSED, 1);
         CallbackBridge.nativeSetWindowAttrib(LwjglGlfwKeycode.GLFW_HOVERED, 1);
         super.onResume();

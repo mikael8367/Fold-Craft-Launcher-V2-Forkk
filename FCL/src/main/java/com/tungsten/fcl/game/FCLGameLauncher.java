@@ -91,10 +91,10 @@ public final class FCLGameLauncher extends DefaultLauncher {
     @Override
     protected void appendJvmArgs(CommandBuilder result) {
         SharedPreferences preferences = context.getSharedPreferences("launcher", Context.MODE_PRIVATE);
-        boolean fpsBooster = preferences.getBoolean("fpsBoosterEnabled", false)
-                || preferences.getBoolean("fpsBoosterUltraEnabled", false);
+        boolean fpsBooster = preferences.getBoolean("fpsBoosterEnabled", false);
+        boolean fpsBoosterUltra = preferences.getBoolean("fpsBoosterUltraEnabled", false);
         boolean ramSaver = preferences.getBoolean("ramSaverEnabled", false);
-        if (!fpsBooster && !ramSaver) {
+        if (!fpsBooster && !fpsBoosterUltra && !ramSaver) {
             return;
         }
 
@@ -102,12 +102,13 @@ public final class FCLGameLauncher extends DefaultLauncher {
                 ? JavaManager.getSuitableJavaVersion(version)
                 : options.getJava();
         List<String> tuningArguments = PerformanceRuntimeTuning.buildJvmArguments(
-                javaVersion.getVersion(), fpsBooster, ramSaver);
+                javaVersion.getVersion(), fpsBooster, fpsBoosterUltra, ramSaver);
         if (!tuningArguments.isEmpty()) {
             result.addAllDefault(tuningArguments);
             Logging.LOG.log(Level.INFO,
                     "Performance tuning requested for Java " + javaVersion.getVersion()
                             + " (FPS Booster=" + fpsBooster
+                            + ", FPS Booster Ultra=" + fpsBoosterUltra
                             + ", RAM Saver=" + ramSaver
                             + "): " + tuningArguments);
         }

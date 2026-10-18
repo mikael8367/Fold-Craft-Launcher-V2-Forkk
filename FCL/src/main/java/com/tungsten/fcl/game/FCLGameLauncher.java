@@ -24,29 +24,24 @@ import com.mio.data.Renderer;
 import com.mio.manager.RendererManager;
 import com.mio.util.LauncherUtilKt;
 import com.tungsten.fcl.R;
-import com.tungsten.fcl.setting.GameOption;
-import com.tungsten.fcl.util.RuntimeUtils;
 import com.tungsten.fclauncher.bridge.FCLBridge;
 import com.tungsten.fcl.FCLApp;
 import com.tungsten.fclcore.auth.AuthInfo;
 import com.tungsten.fclcore.game.GameRepository;
 import com.tungsten.fclcore.game.LaunchOptions;
+import com.tungsten.fclcore.game.JavaVersion;
 import com.tungsten.fclcore.game.Version;
 import com.tungsten.fclcore.launch.DefaultLauncher;
 import com.tungsten.fclcore.util.Logging;
 import com.tungsten.fclcore.util.io.FileUtils;
+import com.tungsten.fclcore.util.platform.CommandBuilder;
 import com.tungsten.fclcore.util.versioning.GameVersionNumber;
-import com.tungsten.fcllibrary.util.LocaleUtils;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 
@@ -89,11 +84,11 @@ public final class FCLGameLauncher extends DefaultLauncher {
         boolean disableEarlyWindow = gameVersion.compareTo("26.3") >= 0;
         if (fmlToml.isFile()) {
             try (BufferedReader reader = new BufferedReader(new FileReader(fmlToml))) {
-                StringBuilder text = new StringBuilder(disableEarlyWindow ? "earlyWindowControl = false\\n" : "");
+                StringBuilder text = new StringBuilder(disableEarlyWindow ? "earlyWindowControl = false\n" : "");
                 String line;
                 while ((line = reader.readLine()) != null) {
                     if (!line.strip().startsWith("earlyWindowControl")) {
-                        text.append(line).append('\\n');
+                        text.append(line).append('\n');
                     }
                 }
                 try (FileWriter writer = new FileWriter(fmlToml)) {
@@ -104,7 +99,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
             }
         } else if (disableEarlyWindow) {
             try {
-                FileUtils.writeText(fmlToml, "earlyWindowControl = false\\n");
+                FileUtils.writeText(fmlToml, "earlyWindowControl = false\n");
             } catch (IOException e) {
                 Logging.LOG.log(Level.WARNING, "Unable to write fml.toml", e);
             }

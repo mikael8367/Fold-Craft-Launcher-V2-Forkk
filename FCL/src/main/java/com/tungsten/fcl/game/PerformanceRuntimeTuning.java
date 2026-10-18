@@ -80,13 +80,31 @@ public final class PerformanceRuntimeTuning {
         return Collections.unmodifiableList(arguments);
     }
 
-    /** Performance profiles intentionally preserve the render resolution chosen by the user. */
+    /**
+     * Native render-buffer scale for the standard FPS profile.
+     * This is applied by the launcher to the output buffer only; it does not
+     * rewrite options.txt or a mod-loader configuration file.
+     */
     public static float getRenderScale(boolean fpsBooster, boolean forceResolution) {
-        return 1.0f;
+        if (forceResolution) {
+            return 1.0f;
+        }
+        return fpsBooster ? 0.85f : 1.0f;
     }
 
-    /** Ultra FPS also preserves the user's render resolution. */
+    /**
+     * Ultra mode reduces both render-buffer dimensions to 70%, which means
+     * roughly 49% of the pixels of full resolution. This can materially help
+     * GPU-bound phones, at the cost of a softer image. User-forced resolution
+     * always wins and is never scaled behind their back.
+     */
     public static float getRenderScale(boolean fpsBooster, boolean ultraFps, boolean forceResolution) {
-        return 1.0f;
+        if (forceResolution) {
+            return 1.0f;
+        }
+        if (ultraFps) {
+            return 0.70f;
+        }
+        return fpsBooster ? 0.85f : 1.0f;
     }
 }

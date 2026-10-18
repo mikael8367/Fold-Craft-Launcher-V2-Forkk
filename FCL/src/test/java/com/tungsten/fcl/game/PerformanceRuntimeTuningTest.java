@@ -17,7 +17,9 @@ public class PerformanceRuntimeTuningTest {
 
     @Test
     public void fpsBoosterReducesRenderResolutionForGpuHeadroom() {
-        assertEquals(0.70f, PerformanceRuntimeTuning.getRenderScale(true, false), 0.0001f);
+        assertEquals(0.60f, PerformanceRuntimeTuning.getRenderScale(true, false), 0.0001f);
+        assertEquals(36.0f, PerformanceRuntimeTuning.getRenderScale(true, false)
+                * PerformanceRuntimeTuning.getRenderScale(true, false) * 100.0f, 0.0001f);
     }
 
     @Test

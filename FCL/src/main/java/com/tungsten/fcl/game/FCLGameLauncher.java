@@ -74,8 +74,8 @@ public final class FCLGameLauncher extends DefaultLauncher {
         File optionsFile = new File(repository.getRunDirectory(version.getId()), "options.txt");
         File configFolder = new File(repository.getRunDirectory(version.getId()), "config");
 
-        if (!configFolder.exists() && !configFolder.isDirectory()) {
-            configFolder.mkdirs();
+        if (!configFolder.isDirectory() && !configFolder.mkdirs() && !configFolder.isDirectory()) {
+            Logging.LOG.warning("Unable to create Minecraft config directory: " + configFolder);
         }
         File profileBackup = new File(optionsFile.getParentFile(), "options.txt.fcl-backup");
         SharedPreferences launcherPrefs = context.getSharedPreferences("launcher", Context.MODE_PRIVATE);
@@ -133,6 +133,7 @@ public final class FCLGameLauncher extends DefaultLauncher {
         fixLang(gameOption);
         fixOptions(gameOption);
 
+        Map<String, String> baselineToVerify = null;
         if (performanceProfileEnabled) {
             // Never change the profile-managed options unless a recoverable
             // baseline exists. The backup is taken before any profile is applied.
@@ -153,20 +154,22 @@ public final class FCLGameLauncher extends DefaultLauncher {
             Map<String, String> baseline = readOptionValues(profileBackup);
             if (baseline != null) {
                 restorePerformanceOptions(gameOption, baseline);
-                gameOption.save();
-                if (performanceOptionsMatchBaseline(optionsFile, baseline)) {
-                    if (!profileBackup.delete()) {
-                        Logging.LOG.warning("Unable to delete performance profile backup: " + profileBackup);
-                    }
-                } else {
-                    // Keep the baseline so a failed write can be retried next launch.
-                    Logging.LOG.warning("Performance profile options were not fully restored; keeping backup for retry.");
-                }
+                baselineToVerify = baseline;
             } else {
                 Logging.LOG.warning("Unable to read performance profile backup; preserving it for recovery.");
             }
         }
         gameOption.save();
+        if (baselineToVerify != null) {
+            if (performanceOptionsMatchBaseline(optionsFile, baselineToVerify)) {
+                if (!profileBackup.delete()) {
+                    Logging.LOG.warning("Unable to delete performance profile backup: " + profileBackup);
+                }
+            } else {
+                // Keep the baseline so a failed write can be retried next launch.
+                Logging.LOG.warning("Performance profile options were not fully restored; keeping backup for retry.");
+            }
+        }
     }
 
     private boolean createPerformanceBackup(File optionsFile, File profileBackup) {

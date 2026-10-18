@@ -21,24 +21,25 @@ public class PerformanceRuntimeTuningTest {
     }
 
     @Test
-    public void fpsProfileOnlyChangesJvmGarbageCollectionArguments() {
+    public void fpsProfileAddsG1AndFramePacingArgumentsOnly() {
         List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(8, true, false);
 
         assertTrue(arguments.contains("-XX:+UseG1GC"));
-        assertTrue(arguments.contains("-XX:MaxGCPauseMillis=100"));
+        assertTrue(arguments.contains("-XX:MaxGCPauseMillis=50"));
         assertTrue(arguments.contains("-XX:+ParallelRefProcEnabled"));
+        assertTrue(arguments.contains("-XX:+ExplicitGCInvokesConcurrent"));
         assertFalse(arguments.stream().anyMatch(argument -> argument.startsWith("-Xmx")));
         assertFalse(arguments.stream().anyMatch(argument -> argument.startsWith("-D")));
     }
 
     @Test
-    public void ramSaverTunesHeapReclamationWithoutOverridingHeapLimit() {
+    public void ramSaverEncouragesHeapReclamationWithoutOverridingHeapLimit() {
         List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(8, false, true);
 
         assertTrue(arguments.contains("-XX:+UseG1GC"));
         assertTrue(arguments.contains("-XX:MaxGCPauseMillis=200"));
         assertTrue(arguments.contains("-XX:MinHeapFreeRatio=10"));
-        assertTrue(arguments.contains("-XX:MaxHeapFreeRatio=35"));
+        assertTrue(arguments.contains("-XX:MaxHeapFreeRatio=25"));
         assertFalse(arguments.contains("-XX:+UseStringDeduplication"));
         assertFalse(arguments.stream().anyMatch(argument -> argument.startsWith("-Xmx")));
     }
@@ -54,7 +55,8 @@ public class PerformanceRuntimeTuningTest {
     public void fpsProfileTakesPauseTargetWhenBothModesAreEnabled() {
         List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(21, true, true);
 
-        assertEquals("-XX:MaxGCPauseMillis=100", arguments.get(1));
+        assertEquals("-XX:MaxGCPauseMillis=50", arguments.get(1));
+        assertTrue(arguments.contains("-XX:+ExplicitGCInvokesConcurrent"));
         assertTrue(arguments.contains("-XX:MinHeapFreeRatio=10"));
         assertTrue(arguments.contains("-XX:+UseStringDeduplication"));
     }
@@ -66,7 +68,7 @@ public class PerformanceRuntimeTuningTest {
             arguments.add("-XX:MaxGCPauseMillis=1");
             throw new AssertionError("Expected an immutable argument list");
         } catch (UnsupportedOperationException expected) {
-            // Expected: the shared tuning definition cannot be modified by callers.
+            // Expected: shared tuning definitions cannot be changed by callers.
         }
     }
 }

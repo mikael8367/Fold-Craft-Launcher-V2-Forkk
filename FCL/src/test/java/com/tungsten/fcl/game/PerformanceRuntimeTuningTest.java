@@ -16,10 +16,10 @@ public class PerformanceRuntimeTuningTest {
     }
 
     @Test
-    public void fpsBoosterUsesAggressiveHalfScaleForGpuHeadroom() {
-        assertEquals(0.50f, PerformanceRuntimeTuning.getRenderScale(true, false), 0.0001f);
-        assertEquals(25.0f, PerformanceRuntimeTuning.getRenderScale(true, false)
-                * PerformanceRuntimeTuning.getRenderScale(true, false) * 100.0f, 0.0001f);
+    public void fpsBoosterUsesFortyPercentScaleForGpuHeadroom() {
+        float scale = PerformanceRuntimeTuning.getRenderScale(true, false);
+        assertEquals(0.40f, scale, 0.0001f);
+        assertEquals(16.0f, scale * scale * 100.0f, 0.0001f);
     }
 
     @Test
@@ -62,13 +62,13 @@ public class PerformanceRuntimeTuningTest {
     }
 
     @Test
-    public void fpsProfileTakesPauseTargetWhenBothModesAreEnabled() {
+    public void fpsProfileTakesPriorityWhenBothModesAreEnabled() {
         List<String> arguments = PerformanceRuntimeTuning.buildJvmArguments(21, true, true);
         assertEquals("-XX:MaxGCPauseMillis=50", arguments.get(1));
         assertTrue(arguments.contains("-XX:+ExplicitGCInvokesConcurrent"));
         assertFalse(arguments.contains("-XX:MinHeapFreeRatio=10"));
         assertFalse(arguments.contains("-XX:MaxHeapFreeRatio=25"));
-        assertTrue(arguments.contains("-XX:+UseStringDeduplication"));
+        assertFalse(arguments.contains("-XX:+UseStringDeduplication"));
     }
 
     @Test

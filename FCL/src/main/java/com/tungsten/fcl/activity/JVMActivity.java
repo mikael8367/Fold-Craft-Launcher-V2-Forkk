@@ -30,6 +30,8 @@ import com.tungsten.fcl.control.JarExecutorMenu;
 import com.tungsten.fcl.control.MenuCallback;
 import com.tungsten.fcl.control.MenuType;
 import com.tungsten.fcl.game.PerformanceRuntimeTuning;
+
+// Shared FPS profile policy; native surface sizing stays in this activity.
 import com.tungsten.fcl.control.view.MenuView;
 import com.tungsten.fcl.game.sdl.SdlBridge;
 import com.mio.flite.FliteTts;

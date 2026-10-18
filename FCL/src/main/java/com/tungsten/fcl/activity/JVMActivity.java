@@ -172,6 +172,7 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
      * 等比缩放并水平居中，关闭时恢复全屏。游戏内菜单实时修改强制分辨率时也会调用。
      */
     public void applyForceResolutionLayout() {
+        updatePerformanceRenderScale();
         ViewGroup.LayoutParams params = textureView.getLayoutParams();
         // letterbox 基准用 TextureView 父容器的实测尺寸,与视图布局落定区域同源,
         // 吸收小窗等窗口形态的装饰 inset 差异;容器与本窗口均尚未布局时(onCreate 早期)

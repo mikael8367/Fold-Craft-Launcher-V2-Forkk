@@ -284,10 +284,23 @@ public class JVMActivity extends FCLActivity implements TextureView.SurfaceTextu
      * rate, but it must never silently alter the user's game resolution.
      */
     private void updatePerformanceRenderScale() {
-        FCLBridge.PERFORMANCE_RENDER_SCALE = 1.0f;
-        if (fpsBoosterActive) {
+        android.content.SharedPreferences preferences =
+                getSharedPreferences("launcher", MODE_PRIVATE);
+        boolean fpsBooster = preferences.getBoolean("fpsBoosterEnabled", false);
+        boolean fpsBoosterUltra = preferences.getBoolean("fpsBoosterUltraEnabled", false);
+        boolean isGame = menuType == MenuType.GAME;
+        float renderScale = PerformanceRuntimeTuning.getRenderScale(
+                isGame && fpsBooster,
+                isGame && fpsBoosterUltra,
+                FCLBridge.FORCE_RESOLUTION
+        );
+        FCLBridge.PERFORMANCE_RENDER_SCALE = renderScale;
+
+        if (isGame && (fpsBooster || fpsBoosterUltra)) {
             Logging.LOG.log(Level.INFO,
-                    "FPS Booster active: render resolution unchanged; sustained-performance hint requested");
+                    "FPS profile active: render scale=" + renderScale
+                            + ", sustained-performance hint requested="
+                            + (activityInForeground && fpsBoosterActive));
         }
     }
 

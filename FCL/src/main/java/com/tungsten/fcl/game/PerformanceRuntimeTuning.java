@@ -12,6 +12,7 @@ import java.util.List;
  *
  * Garbage-collection settings are trade-offs, not a guaranteed FPS or RAM
  * reduction. Actual results depend on Java version, mods, renderer and device.
+ * The user explicitly requested an arm64 debug APK build for this revision.
  */
 public final class PerformanceRuntimeTuning {
 

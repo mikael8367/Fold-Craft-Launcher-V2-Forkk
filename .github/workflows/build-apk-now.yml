@@ -1,8 +1,11 @@
 name: Build APK now
 
-# APK builds are manual only unless the user explicitly requests one.
+# Temporary trigger for the explicitly requested APK build.
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "FCL/src/main/java/com/tungsten/fcl/game/PerformanceRuntimeTuning.java"
 
 jobs:
   build:
